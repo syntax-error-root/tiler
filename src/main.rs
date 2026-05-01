@@ -379,6 +379,7 @@ fn process_pty_actions(pane: &mut layout::Pane, pane_data: &mut PaneData, action
                 if pane_data.cursor_x >= pane.width {
                     pane_data.cursor_x = 0;
                     pane_data.cursor_y += 1;
+                    ensure_cursor_in_bounds(pane, pane_data);
                 }
             }
             ansi::Action::MoveCursor(row, col) => {
