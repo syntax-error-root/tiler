@@ -91,14 +91,26 @@ impl PTY {
     }
 
     pub fn write(&mut self, data: &[u8]) -> Result<usize, String> {
-        unsafe {
-            let written = libc::write(self.master, data.as_ptr() as *const libc::c_void, data.len());
-            if written < 0 {
-                Err(format!("Write failed: {}", std::io::Error::last_os_error()))
-            } else {
-                Ok(written as usize)
+        let mut total_written = 0;
+        while total_written < data.len() {
+            unsafe {
+                let written = libc::write(
+                    self.master,
+                    data[total_written..].as_ptr() as *const libc::c_void,
+                    data.len() - total_written,
+                );
+                if written < 0 {
+                    let err = *libc::__errno_location();
+                    if err == libc::EAGAIN || err == libc::EWOULDBLOCK {
+                        libc::usleep(1000);
+                        continue;
+                    }
+                    return Err(format!("Write failed: {}", std::io::Error::last_os_error()));
+                }
+                total_written += written as usize;
             }
         }
+        Ok(total_written)
     }
 
     pub fn read_nonblocking(&self) -> Result<Option<Vec<u8>>, String> {
