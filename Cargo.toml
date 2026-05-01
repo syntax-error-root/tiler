@@ -1,0 +1,9 @@
+[package]
+name = "term-tiler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pty = "0.2"
+termion = "2.0"
+libc = "0.2"
