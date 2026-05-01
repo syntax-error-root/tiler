@@ -1,1 +1,1 @@
-pub enum InputAction;
+pub enum InputAction {}

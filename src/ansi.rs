@@ -1,1 +1,1 @@
-pub enum Action;
+pub enum Action {}
