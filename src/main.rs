@@ -235,17 +235,6 @@ fn parse_next_key(buf: &[u8]) -> Option<(termion::event::Key, usize)> {
         }
     }
 
-    // Ctrl+Shift shortcut: Ctrl+R (0x12) prefix
-    if buf.len() >= 2 && buf[0] == 0x12 {
-        use termion::event::Key;
-        let key = match buf[1] {
-            b'H' | b'h' => Key::Char('H'),
-            b'V' | b'v' => Key::Char('V'),
-            _ => return Some((Key::Ctrl(buf[1] as char), 2)),
-        };
-        return Some((key, 2));
-    }
-
     // Ctrl+char
     if buf[0] < 32 && buf[0] != 27 && buf[0] != 13 && buf[0] != 10 {
         let c = (buf[0] + 96) as char;
