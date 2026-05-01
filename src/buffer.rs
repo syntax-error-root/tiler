@@ -103,18 +103,6 @@ impl Buffer {
         }
         self.dirty.clear();
     }
-
-    pub fn is_dirty(&self, x: usize, y: usize) -> bool {
-        self.dirty.contains(&(x, y))
-    }
-
-    pub fn clear_dirty(&mut self) {
-        self.dirty.clear();
-    }
-
-    pub fn get_dirty_cells(&self) -> impl Iterator<Item = &(usize, usize)> {
-        self.dirty.iter()
-    }
 }
 
 #[cfg(test)]
@@ -144,10 +132,14 @@ mod tests {
     }
 
     #[test]
-    fn test_dirty_tracking() {
-        let mut buffer = Buffer::new(5, 5);
-        assert!(!buffer.is_dirty(2, 2));
-        buffer.write(2, 2, 'Y', Style::default());
-        assert!(buffer.is_dirty(2, 2));
+    fn test_scroll_up() {
+        let mut buffer = Buffer::new(5, 3);
+        buffer.write(0, 0, 'A', Style::default());
+        buffer.write(0, 1, 'B', Style::default());
+        buffer.write(0, 2, 'C', Style::default());
+        buffer.scroll_up(1);
+        assert_eq!(buffer.get(0, 0).unwrap().ch, 'B');
+        assert_eq!(buffer.get(0, 1).unwrap().ch, 'C');
+        assert_eq!(buffer.get(0, 2).unwrap().ch, ' ');
     }
 }

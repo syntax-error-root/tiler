@@ -20,20 +20,8 @@ pub fn handle_input(bytes: &[u8]) -> Option<InputAction> {
             _ => return Some(InputAction::SendToPTY(bytes.to_vec())),
         }
     }
-    
-    Some(InputAction::SendToPTY(bytes.to_vec()))
-}
 
-pub fn read_key() -> Option<Vec<u8>> {
-    use std::io::{self, Read};
-    
-    let mut buffer = [0u8; 1];
-    let mut stdin = io::stdin();
-    if stdin.read_exact(&mut buffer).is_ok() {
-        Some(vec![buffer[0]])
-    } else {
-        None
-    }
+    Some(InputAction::SendToPTY(bytes.to_vec()))
 }
 
 #[cfg(test)]

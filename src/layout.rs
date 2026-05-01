@@ -15,7 +15,6 @@ pub struct Pane {
     pub width: usize,
     pub height: usize,
     pub buffer: buffer::Buffer,
-    pub style: buffer::Style,
 }
 
 pub struct Layout {
@@ -35,7 +34,6 @@ impl Layout {
             width,
             height,
             buffer: buffer::Buffer::new(width, height),
-            style: buffer::Style::default(),
         };
 
         Layout {
@@ -68,7 +66,6 @@ impl Layout {
             width: pane.width,
             height: bottom_height,
             buffer: buffer::Buffer::new(pane.width, bottom_height),
-            style: buffer::Style::default(),
         };
 
         self.next_id += 1;
@@ -99,7 +96,6 @@ impl Layout {
             width: right_width,
             height: pane.height,
             buffer: buffer::Buffer::new(right_width, pane.height),
-            style: buffer::Style::default(),
         };
 
         self.next_id += 1;
@@ -114,7 +110,9 @@ impl Layout {
         let target = self.find_adjacent_pane(current, direction);
 
         if let Some(target_id) = target {
-            self.focused = self.panes.iter().position(|p| p.id == target_id).unwrap();
+            if let Some(idx) = self.panes.iter().position(|p| p.id == target_id) {
+                self.focused = idx;
+            }
         }
     }
 
@@ -166,10 +164,6 @@ impl Layout {
         end.saturating_sub(start)
     }
 
-    pub fn get_focused_pane(&mut self) -> &mut Pane {
-        &mut self.panes[self.focused]
-    }
-
     pub fn remove_pane(&mut self, pane_id: usize) {
         self.panes.retain(|p| p.id != pane_id);
         if self.panes.is_empty() {
@@ -180,7 +174,6 @@ impl Layout {
                 width: self.width,
                 height: self.height,
                 buffer: buffer::Buffer::new(self.width, self.height),
-                style: buffer::Style::default(),
             };
             self.next_id += 1;
             self.panes.push(initial_pane);

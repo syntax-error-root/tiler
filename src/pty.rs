@@ -101,18 +101,6 @@ impl PTY {
         }
     }
 
-    pub fn read(&self) -> Result<Vec<u8>, String> {
-        let mut buf = [0u8; 8192];
-        unsafe {
-            let read = libc::read(self.master, buf.as_mut_ptr() as *mut libc::c_void, buf.len());
-            if read < 0 {
-                Err(format!("Read failed: {}", std::io::Error::last_os_error()))
-            } else {
-                Ok(buf[..read as usize].to_vec())
-            }
-        }
-    }
-
     pub fn read_nonblocking(&self) -> Result<Option<Vec<u8>>, String> {
         let mut buf = [0u8; 8192];
         unsafe {
@@ -184,7 +172,7 @@ mod tests {
     #[test]
     fn test_pty_creation() {
         let pty = PTY::new("ls", &["-la"]).unwrap();
-        assert!(pty.master >= 0);
+        assert!(pty.master_fd() >= 0);
     }
 
     #[test]
@@ -194,9 +182,12 @@ mod tests {
     }
 
     #[test]
-    fn test_read_from_pty() {
+    fn test_read_nonblocking() {
         let pty = PTY::new("echo", &["hello"]).unwrap();
-        let output = pty.read().unwrap();
-        assert!(output.len() > 0);
+        // Give the child time to produce output
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let output = pty.read_nonblocking().unwrap();
+        assert!(output.is_some());
+        assert!(output.unwrap().len() > 0);
     }
 }
