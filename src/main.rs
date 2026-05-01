@@ -121,6 +121,12 @@ fn main() -> Result<(), String> {
             panes.remove(&pane_id);
         }
 
+        // If remove_pane created a fallback pane, spawn a PTY for it
+        if panes.is_empty() && !layout.panes.is_empty() {
+            let fallback_id = layout.panes[layout.focused].id;
+            spawn_new_pane(&mut panes, fallback_id, &layout);
+        }
+
         // Render all panes
         for pane in &layout.panes {
             let is_focused = pane.id == layout.panes[layout.focused].id;
