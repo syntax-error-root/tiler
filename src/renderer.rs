@@ -59,18 +59,69 @@ impl Renderer {
     }
 
     fn draw_border(&mut self, pane: &crate::layout::Pane) {
-        let border_char = '│';
-        for y in pane.y..pane.y + pane.height {
-            self.move_cursor(pane.x as u16, y as u16);
-            write!(self.stdout, "{}", termion::color::Fg(termion::color::Black)).ok();
-            write!(self.stdout, "{}", termion::color::Bg(termion::color::White)).ok();
-            write!(self.stdout, "{}", border_char).ok();
+        let style = "\x1B[30;47m";
+        // Top border
+        if pane.y > 0 {
+            for x in pane.x..pane.x + pane.width {
+                self.move_cursor(x as u16, (pane.y - 1) as u16);
+                write!(self.stdout, "{}─", style).ok();
+            }
+        }
+        // Left border
+        if pane.x > 0 {
+            for y in pane.y..pane.y + pane.height {
+                self.move_cursor((pane.x - 1) as u16, y as u16);
+                write!(self.stdout, "{}│", style).ok();
+            }
+        }
+        // Bottom border
+        if pane.y + pane.height < self.screen_height() {
+            for x in pane.x..pane.x + pane.width {
+                self.move_cursor(x as u16, (pane.y + pane.height) as u16);
+                write!(self.stdout, "{}─", style).ok();
+            }
+        }
+        // Right border
+        if pane.x + pane.width < self.screen_width() {
+            for y in pane.y..pane.y + pane.height {
+                self.move_cursor((pane.x + pane.width) as u16, y as u16);
+                write!(self.stdout, "{}│", style).ok();
+            }
+        }
+        // Corners
+        if pane.x > 0 && pane.y > 0 {
+            self.move_cursor((pane.x - 1) as u16, (pane.y - 1) as u16);
+            write!(self.stdout, "{}┌", style).ok();
+        }
+        if pane.x + pane.width < self.screen_width() && pane.y > 0 {
+            self.move_cursor((pane.x + pane.width) as u16, (pane.y - 1) as u16);
+            write!(self.stdout, "{}┐", style).ok();
+        }
+        if pane.x > 0 && pane.y + pane.height < self.screen_height() {
+            self.move_cursor((pane.x - 1) as u16, (pane.y + pane.height) as u16);
+            write!(self.stdout, "{}└", style).ok();
+        }
+        if pane.x + pane.width < self.screen_width() && pane.y + pane.height < self.screen_height() {
+            self.move_cursor((pane.x + pane.width) as u16, (pane.y + pane.height) as u16);
+            write!(self.stdout, "{}┘", style).ok();
         }
         write!(self.stdout, "\x1B[0m").ok();
     }
 
     pub fn flush(&mut self) {
         self.stdout.flush().ok();
+    }
+
+    fn screen_size(&self) -> (u16, u16) {
+        termion::terminal_size().unwrap_or((80, 24))
+    }
+
+    fn screen_width(&self) -> usize {
+        self.screen_size().0 as usize
+    }
+
+    fn screen_height(&self) -> usize {
+        self.screen_size().1 as usize
     }
 }
 
