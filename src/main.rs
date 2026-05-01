@@ -358,10 +358,9 @@ fn process_pty_actions(pane: &mut layout::Pane, pane_data: &mut PaneData, action
             ansi::Action::SetItalic(_) | ansi::Action::SetUnderline(_) => {}
             ansi::Action::ClearLine => {
                 let y = pane_data.cursor_y.min(pane.height - 1);
-                for x in 0..pane.width {
+                for x in pane_data.cursor_x..pane.width {
                     pane.buffer.write(x, y, ' ', pane_data.style);
                 }
-                pane_data.cursor_x = 0;
             }
             ansi::Action::ClearScreen => {
                 pane.buffer.clear();
