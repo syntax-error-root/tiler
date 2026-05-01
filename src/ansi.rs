@@ -2,6 +2,10 @@
 pub enum Action {
     Write(char),
     MoveCursor(usize, usize),
+    CursorUp(usize),
+    CursorDown(usize),
+    CursorForward(usize),
+    CursorBack(usize),
     Newline,
     CarriageReturn,
     SetFgColor(Color),
@@ -50,6 +54,13 @@ pub fn parse(input: &str) -> Vec<Action> {
 
 fn parse_escape_sequence(chars: &mut std::iter::Peekable<std::str::Chars>) -> Vec<Action> {
     let mut params = String::new();
+    let mut private = false;
+
+    // Handle private mode prefix (?)
+    if let Some(&'?') = chars.peek() {
+        private = true;
+        chars.next();
+    }
 
     while let Some(&ch) = chars.peek() {
         if ch.is_ascii_digit() || ch == ';' {
@@ -60,9 +71,16 @@ fn parse_escape_sequence(chars: &mut std::iter::Peekable<std::str::Chars>) -> Ve
         }
     }
 
+    if private {
+        // Consume the end character for private sequences (e.g., ?25h, ?25l)
+        chars.next();
+        return vec![];
+    }
+
     if let Some(end_char) = chars.next() {
+        let n: usize = params.parse().unwrap_or(1);
         match end_char {
-            'H' => {
+            'H' | 'f' => {
                 let parts: Vec<usize> = params.split(';')
                     .map(|s| s.parse().unwrap_or(1))
                     .collect();
@@ -70,9 +88,16 @@ fn parse_escape_sequence(chars: &mut std::iter::Peekable<std::str::Chars>) -> Ve
                 let col = parts.get(1).copied().unwrap_or(1).saturating_sub(1);
                 vec![Action::MoveCursor(row, col)]
             }
+            'A' => vec![Action::CursorUp(n.max(1))],
+            'B' => vec![Action::CursorDown(n.max(1))],
+            'C' => vec![Action::CursorForward(n.max(1))],
+            'D' => vec![Action::CursorBack(n.max(1))],
             'K' => vec![Action::ClearLine],
             'J' => vec![Action::ClearScreen],
             'm' => {
+                if params.is_empty() {
+                    return vec![Action::Reset];
+                }
                 let codes: Vec<u32> = params.split(';')
                     .filter_map(|s| s.parse().ok())
                     .collect();

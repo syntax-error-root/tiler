@@ -280,6 +280,18 @@ fn process_pty_actions(pane: &mut layout::Pane, pane_data: &mut PaneData, action
                 pane_data.cursor_x = (*col).min(pane.width.saturating_sub(1));
                 pane_data.cursor_y = (*row).min(pane.height.saturating_sub(1));
             }
+            ansi::Action::CursorUp(n) => {
+                pane_data.cursor_y = pane_data.cursor_y.saturating_sub(*n);
+            }
+            ansi::Action::CursorDown(n) => {
+                pane_data.cursor_y = (pane_data.cursor_y + n).min(pane.height.saturating_sub(1));
+            }
+            ansi::Action::CursorForward(n) => {
+                pane_data.cursor_x = (pane_data.cursor_x + n).min(pane.width.saturating_sub(1));
+            }
+            ansi::Action::CursorBack(n) => {
+                pane_data.cursor_x = pane_data.cursor_x.saturating_sub(*n);
+            }
             ansi::Action::SetFgColor(color) => {
                 pane_data.style.fg_color = buffer_color_to_color(*color);
             }
