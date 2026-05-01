@@ -172,7 +172,9 @@ fn main() -> Result<(), String> {
         // If remove_pane created a fallback pane, spawn a PTY for it
         if panes.is_empty() && !layout.panes.is_empty() {
             let fallback_id = layout.panes[layout.focused].id;
-            spawn_new_pane(&mut panes, fallback_id, &layout);
+            if spawn_new_pane(&mut panes, fallback_id, &layout).is_err() {
+                layout.remove_pane(fallback_id);
+            }
         }
 
         // Render all panes
@@ -209,8 +211,11 @@ fn handle_ctrl_a_command(
             let focused_id = layout.panes[layout.focused].id;
             if layout.split_horizontal(focused_id).is_ok() {
                 let new_id = layout.panes[layout.focused].id;
-                spawn_new_pane(panes, new_id, layout);
-                resize_pty_for_pane(panes, focused_id, layout);
+                if spawn_new_pane(panes, new_id, layout).is_err() {
+                    layout.remove_pane(new_id);
+                } else {
+                    resize_pty_for_pane(panes, focused_id, layout);
+                }
             }
             true
         }
@@ -218,8 +223,11 @@ fn handle_ctrl_a_command(
             let focused_id = layout.panes[layout.focused].id;
             if layout.split_vertical(focused_id).is_ok() {
                 let new_id = layout.panes[layout.focused].id;
-                spawn_new_pane(panes, new_id, layout);
-                resize_pty_for_pane(panes, focused_id, layout);
+                if spawn_new_pane(panes, new_id, layout).is_err() {
+                    layout.remove_pane(new_id);
+                } else {
+                    resize_pty_for_pane(panes, focused_id, layout);
+                }
             }
             true
         }
@@ -250,13 +258,12 @@ fn send_to_focused_pty(data: &[u8], panes: &mut HashMap<usize, PaneData>, layout
     }
 }
 
-fn spawn_new_pane(panes: &mut HashMap<usize, PaneData>, pane_id: usize, layout: &layout::Layout) {
+fn spawn_new_pane(panes: &mut HashMap<usize, PaneData>, pane_id: usize, layout: &layout::Layout) -> Result<(), String> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
     let new_pty = match pty::PTY::new(shell.as_str(), &[]) {
         Ok(pty) => pty,
         Err(e) => {
-            eprintln!("Failed to spawn pane: {}", e);
-            return;
+            return Err(format!("Failed to spawn pane: {}", e));
         }
     };
     if let Some(pane) = layout.panes.iter().find(|p| p.id == pane_id) {
@@ -269,6 +276,7 @@ fn spawn_new_pane(panes: &mut HashMap<usize, PaneData>, pane_id: usize, layout: 
         saved_cursor: None,
         style: buffer::Style::default(),
     });
+    Ok(())
 }
 
 fn resize_pty_for_pane(panes: &mut HashMap<usize, PaneData>, pane_id: usize, layout: &layout::Layout) {
