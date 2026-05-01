@@ -1,6 +1,6 @@
 use crate::buffer;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Direction {
     Up,
     Down,
