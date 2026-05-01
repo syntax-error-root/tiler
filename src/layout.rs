@@ -166,6 +166,16 @@ impl Layout {
         end.saturating_sub(start)
     }
 
+    pub fn resize(&mut self, new_width: usize, new_height: usize) {
+        self.width = new_width;
+        self.height = new_height;
+        for pane in &mut self.panes {
+            pane.width = pane.width.min(new_width);
+            pane.height = pane.height.min(new_height);
+            pane.buffer.resize(pane.width, pane.height);
+        }
+    }
+
     pub fn remove_pane(&mut self, pane_id: usize) {
         self.panes.retain(|p| p.id != pane_id);
         if self.panes.is_empty() {

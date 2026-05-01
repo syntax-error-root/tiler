@@ -44,6 +44,23 @@ fn main() -> Result<(), String> {
     let mut sequence_buf: Vec<u8> = Vec::new();
 
     loop {
+        // Check for terminal resize
+        if let Ok((new_w, new_h)) = termion::terminal_size() {
+            let nw = new_w as usize;
+            let nh = new_h as usize;
+            if nw != layout.width || nh != layout.height {
+                layout.resize(nw, nh);
+                for pane in &layout.panes {
+                    if let Some(pd) = panes.get_mut(&pane.id) {
+                        pd.pty.set_window_size(pane.width as u16, pane.height as u16);
+                        pd.cursor_x = pd.cursor_x.min(pane.width.saturating_sub(1));
+                        pd.cursor_y = pd.cursor_y.min(pane.height.saturating_sub(1));
+                    }
+                }
+                renderer.clear_screen();
+            }
+        }
+
         // Build poll fd set: stdin + all PTY master fds
         let mut poll_fds: Vec<libc::pollfd> = Vec::new();
         poll_fds.push(libc::pollfd {
