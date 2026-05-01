@@ -130,7 +130,12 @@ fn main() -> Result<(), String> {
         // Render all panes
         for pane in &layout.panes {
             let is_focused = pane.id == layout.panes[layout.focused].id;
-            renderer.render_pane(pane, is_focused);
+            let cursor = if is_focused {
+                panes.get(&pane.id).map(|pd| (pd.cursor_x, pd.cursor_y))
+            } else {
+                None
+            };
+            renderer.render_pane(pane, is_focused, cursor);
         }
         renderer.flush();
     }

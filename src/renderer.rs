@@ -33,7 +33,7 @@ impl Renderer {
         write!(self.stdout, "{}", termion::cursor::Show).ok();
     }
 
-    pub fn render_pane(&mut self, pane: &crate::layout::Pane, is_focused: bool) {
+    pub fn render_pane(&mut self, pane: &crate::layout::Pane, is_focused: bool, cursor: Option<(usize, usize)>) {
         for y in 0..pane.height {
             for x in 0..pane.width {
                 let cell = pane.buffer.get(x, y).unwrap();
@@ -45,6 +45,17 @@ impl Renderer {
                 let bold = if cell.style.bold { "\x1B[1m" } else { "" };
 
                 write!(self.stdout, "{}{}{}{}", bold, fg, bg, cell.ch).ok();
+            }
+        }
+
+        // Draw cursor for focused pane
+        if let Some((cx, cy)) = cursor {
+            if cx < pane.width && cy < pane.height {
+                self.move_cursor((pane.x + cx) as u16, (pane.y + cy) as u16);
+                write!(self.stdout, "\x1B[0m\x1B[7m").ok();
+                let cell = pane.buffer.get(cx, cy).unwrap();
+                write!(self.stdout, "{}", cell.ch).ok();
+                write!(self.stdout, "\x1B[0m").ok();
             }
         }
 
