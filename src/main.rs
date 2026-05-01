@@ -67,13 +67,15 @@ fn main() -> Result<(), String> {
                         input::InputAction::SplitHorizontal => {
                             let focused_id = layout.panes[layout.focused].id;
                             if let Ok(_) = layout.split_horizontal(focused_id) {
-                                spawn_new_pane(&mut panes);
+                                let new_id = layout.panes[layout.focused].id;
+                                spawn_new_pane(&mut panes, new_id);
                             }
                         }
                         input::InputAction::SplitVertical => {
                             let focused_id = layout.panes[layout.focused].id;
                             if let Ok(_) = layout.split_vertical(focused_id) {
-                                spawn_new_pane(&mut panes);
+                                let new_id = layout.panes[layout.focused].id;
+                                spawn_new_pane(&mut panes, new_id);
                             }
                         }
                         input::InputAction::Navigate(dir) => {
@@ -92,11 +94,10 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn spawn_new_pane(panes: &mut HashMap<usize, PaneData>) {
-    let new_id = panes.keys().max().copied().unwrap_or(0) + 1;
+fn spawn_new_pane(panes: &mut HashMap<usize, PaneData>, pane_id: usize) {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
     let new_pty = pty::PTY::new(shell.as_str(), &[]).unwrap();
-    panes.insert(new_id, PaneData {
+    panes.insert(pane_id, PaneData {
         pty: new_pty,
         cursor_x: 0,
         cursor_y: 0,
