@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 #[derive(Clone, Copy, PartialEq)]
 pub struct Style {
     pub fg_color: Color,
@@ -49,25 +47,18 @@ pub struct Buffer {
     cells: Vec<Vec<Cell>>,
     pub width: usize,
     pub height: usize,
-    dirty: HashSet<(usize, usize)>,
 }
 
 impl Buffer {
     pub fn new(width: usize, height: usize) -> Self {
         let cells = vec![vec![Cell::default(); width]; height];
-        Buffer {
-            cells,
-            width,
-            height,
-            dirty: HashSet::new(),
-        }
+        Buffer { cells, width, height }
     }
 
     pub fn write(&mut self, x: usize, y: usize, ch: char, style: Style) {
         if x < self.width && y < self.height {
             self.cells[y][x].ch = ch;
             self.cells[y][x].style = style;
-            self.dirty.insert((x, y));
         }
     }
 
@@ -85,7 +76,6 @@ impl Buffer {
                 *cell = Cell::default();
             }
         }
-        self.dirty.clear();
     }
 
     pub fn scroll_up(&mut self, n: usize) {
@@ -101,7 +91,6 @@ impl Buffer {
                 self.cells[y][x] = Cell::default();
             }
         }
-        self.dirty.clear();
     }
 
     pub fn resize(&mut self, new_width: usize, new_height: usize) {
@@ -114,7 +103,6 @@ impl Buffer {
         self.cells = new_cells;
         self.width = new_width;
         self.height = new_height;
-        self.dirty.clear();
     }
 }
 

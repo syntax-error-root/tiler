@@ -180,7 +180,13 @@ fn handle_key_action(
 
 fn spawn_new_pane(panes: &mut HashMap<usize, PaneData>, pane_id: usize, layout: &layout::Layout) {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
-    let new_pty = pty::PTY::new(shell.as_str(), &[]).unwrap();
+    let new_pty = match pty::PTY::new(shell.as_str(), &[]) {
+        Ok(pty) => pty,
+        Err(e) => {
+            eprintln!("Failed to spawn pane: {}", e);
+            return;
+        }
+    };
     if let Some(pane) = layout.panes.iter().find(|p| p.id == pane_id) {
         new_pty.set_window_size(pane.width as u16, pane.height as u16);
     }
@@ -239,7 +245,20 @@ fn parse_next_key(buf: &[u8]) -> Option<(termion::event::Key, usize)> {
 
     // Alt+char
     if buf[0] == 27 && buf.len() >= 2 {
+        // Distinguish Alt+key from incomplete escape sequence
+        if buf[1] == b'[' && buf.len() < 4 {
+            // Partial escape sequence — need more data
+            // But if only \e[ is buffered and no more arrives, treat as stale
+            if buf.len() == 2 {
+                return None;
+            }
+        }
         return Some((termion::event::Key::Alt(buf[1] as char), 2));
+    }
+
+    // Bare escape key (no follow-up byte)
+    if buf[0] == 27 {
+        return Some((termion::event::Key::Esc, 1));
     }
 
     // Plain char (UTF-8)
