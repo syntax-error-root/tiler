@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use crate::buffer;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Direction {
