@@ -4,8 +4,7 @@ use std::ptr;
 
 pub struct PTY {
     pub pid: libc::pid_t,
-    pub master: i32,
-    pub slave: i32,
+    master: i32,
 }
 
 impl PTY {
@@ -13,7 +12,7 @@ impl PTY {
         let mut master: c_int = -1;
         let mut slave: c_int = -1;
         let mut name: [c_char; 1024] = [0; 1024];
-        
+
         unsafe {
             let result = openpty(
                 &mut master,
@@ -22,14 +21,14 @@ impl PTY {
                 ptr::null(),
                 ptr::null(),
             );
-            
+
             if result < 0 {
                 return Err(format!("openpty failed: {}", std::io::Error::last_os_error()));
             }
         }
-        
+
         let pid = unsafe { fork() };
-        
+
         if pid < 0 {
             unsafe {
                 close(master);
@@ -37,18 +36,18 @@ impl PTY {
             }
             return Err(format!("fork failed: {}", std::io::Error::last_os_error()));
         }
-        
+
         if pid == 0 {
             unsafe {
                 close(master);
-                
+
                 let sid = libc::setsid();
                 if sid < 0 {
                     _exit(1);
                 }
-                
+
                 libc::ioctl(slave, libc::TIOCSCTTY, 0 as *mut libc::c_void);
-                
+
                 let dup2_result = libc::dup2(slave, 0);
                 if dup2_result < 0 {
                     _exit(1);
@@ -61,28 +60,28 @@ impl PTY {
                 if dup2_result < 0 {
                     _exit(1);
                 }
-                
+
                 close(slave);
-                
+
                 let cmd_cstring = CString::new(command).unwrap();
-                let arg_cstrings: Vec<CString> = args.iter()
-                    .map(|s| CString::new(*s).unwrap())
+                let arg_cstrings: Vec<CString> = std::iter::once(CString::new(command).unwrap())
+                    .chain(args.iter().map(|s| CString::new(*s).unwrap()))
                     .collect();
                 let mut argv: Vec<*const c_char> = arg_cstrings.iter()
                     .map(|s| s.as_ptr())
                     .collect();
                 argv.push(ptr::null());
-                
+
                 execvp(cmd_cstring.as_ptr(), argv.as_ptr());
                 _exit(1);
             }
         }
-        
+
         unsafe {
             close(slave);
         }
-        
-        Ok(PTY { pid, master, slave })
+
+        Ok(PTY { pid, master })
     }
 
     pub fn write(&mut self, data: &[u8]) -> Result<usize, String> {
@@ -120,20 +119,31 @@ impl PTY {
         unsafe {
             if self.master >= 0 {
                 libc::close(self.master);
+                self.master = -1;
             }
-            if self.slave >= 0 {
-                libc::close(self.slave);
-            }
+        }
+    }
+
+    pub fn set_window_size(&self, cols: u16, rows: u16) {
+        let ws = libc::winsize {
+            ws_row: rows,
+            ws_col: cols,
+            ws_xpixel: 0,
+            ws_ypixel: 0,
+        };
+        unsafe {
+            libc::ioctl(self.master, libc::TIOCSWINSZ, &ws);
         }
     }
 }
 
 impl Drop for PTY {
     fn drop(&mut self) {
+        self.close();
         unsafe {
             libc::kill(self.pid, libc::SIGTERM);
             let mut status: libc::c_int = 0;
-            libc::waitpid(self.pid, &mut status, 0);
+            libc::waitpid(self.pid, &mut status, libc::WNOHANG);
         }
     }
 }
