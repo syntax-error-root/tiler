@@ -80,8 +80,11 @@ impl PTY {
         
         unsafe {
             close(slave);
+
+            let flags = libc::fcntl(master, libc::F_GETFL);
+            libc::fcntl(master, libc::F_SETFL, flags | libc::O_NONBLOCK);
         }
-        
+
         Ok(PTY { pid, master, slave })
     }
 
@@ -99,11 +102,16 @@ impl PTY {
     pub fn read(&self) -> Result<Vec<u8>, String> {
         let mut buf = [0u8; 8192];
         unsafe {
-            let read = libc::read(self.master, buf.as_mut_ptr() as *mut libc::c_void, buf.len());
-            if read < 0 {
-                Err(format!("Read failed: {}", std::io::Error::last_os_error()))
+            let n = libc::read(self.master, buf.as_mut_ptr() as *mut libc::c_void, buf.len());
+            if n < 0 {
+                let errno = *libc::__errno_location();
+                if errno == libc::EAGAIN || errno == libc::EWOULDBLOCK {
+                    Ok(Vec::new())
+                } else {
+                    Err(format!("Read failed: {}", std::io::Error::last_os_error()))
+                }
             } else {
-                Ok(buf[..read as usize].to_vec())
+                Ok(buf[..n as usize].to_vec())
             }
         }
     }
