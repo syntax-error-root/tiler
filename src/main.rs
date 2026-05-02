@@ -144,6 +144,23 @@ fn main() -> Result<(), String> {
                     }
                 }
 
+                Event::MouseButtonDown { x, y, .. } => {
+                    let (cell_w, cell_h) = renderer.cell_size();
+                    let col = x as usize / cell_w;
+                    let row = y as usize / cell_h;
+                    // Find which pane was clicked
+                    let tab_bar_rows = if layout.tabs.len() > 1 { 1 } else { 0 };
+                    let adj_row = row.saturating_sub(tab_bar_rows);
+                    for (i, pane) in layout.active_panes().iter().enumerate() {
+                        if col >= pane.x && col < pane.x + pane.width
+                            && adj_row >= pane.y && adj_row < pane.y + pane.height
+                        {
+                            layout.active_tab_mut().focused = i;
+                            break;
+                        }
+                    }
+                }
+
                 Event::Window { win_event: WindowEvent::Resized(_, _), .. } => {
                     let (new_cols, new_rows) = renderer.grid_size();
                     if new_cols != layout.width || new_rows != layout.height {

@@ -23,6 +23,7 @@ pub struct Renderer {
     config_bg: (u8, u8, u8),
     config_fg: (u8, u8, u8),
     cursor_style: CursorStyle,
+    #[allow(dead_code)]
     cursor_blink: bool,
 }
 
