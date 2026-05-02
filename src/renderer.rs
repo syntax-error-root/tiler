@@ -97,7 +97,7 @@ impl Renderer {
             let glyph_h = metrics.bounds.height.ceil() as usize;
             let h = ((glyph_h as f32) * 1.2).ceil() as usize;
 
-            (w, h.max(10))
+            (w, h.max(12))
         } else {
             (DEFAULT_CELL_WIDTH, DEFAULT_CELL_HEIGHT)
         }
@@ -266,13 +266,13 @@ impl Renderer {
             let baseline = cell_h as f32 * 0.8;
             let y_start = (baseline - glyph_h as f32 + metrics.bounds.ymin.abs()).max(0.0) as usize;
 
-            // Draw larger blocks for better visibility
-            // Each glyph pixel becomes a 2x2 block at correct position
+            // Draw larger blocks for much better visibility
+            // Each glyph pixel becomes a 4x4 block at correct position
             self.canvas.set_draw_color(Color::RGB(fg.0, fg.1, fg.2));
             for gy in 0..glyph_h {
                 for gx in 0..glyph_w {
                     let coverage = bitmap[gy * glyph_w + gx];
-                    if coverage < 30 { // Very low threshold to catch more pixels
+                    if coverage < 10 { // Very low threshold to catch nearly all pixels
                         continue;
                     }
                     let sx = x_start + gx;
@@ -280,12 +280,12 @@ impl Renderer {
                     if sx >= cw || sy >= cell_h {
                         continue;
                     }
-                    // Draw 2x2 block at correct (not scaled) position
+                    // Draw 4x4 block at correct position
                     let _ = self.canvas.fill_rect(Rect::new(
                         (pixel_x + sx) as i32,
                         (pixel_y + sy) as i32,
-                        2,
-                        2,
+                        4,
+                        4,
                     ));
                 }
             }
