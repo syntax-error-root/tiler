@@ -250,94 +250,52 @@ impl Renderer {
         let cw = self.cell_width;
         let cell_h = self.cell_height;
 
-        let surface = sdl2::surface::Surface::new(
-            cw as u32,
-            cell_h as u32,
-            sdl2::pixels::PixelFormatEnum::RGBA8888,
-        );
+        if let Some(font) = &self.font {
+            let (metrics, bitmap) = font.rasterize(ch, self.font_size);
+            let glyph_w = metrics.bounds.width as usize;
+            let glyph_h = metrics.bounds.height as usize;
+            let x_start = if metrics.bounds.xmin < 0.0 {
+                0
+            } else {
+                metrics.bounds.xmin as usize
+            };
+            let baseline = cell_h as f32 * 0.8;
+            let y_start = (baseline as usize)
+                .saturating_sub(glyph_h)
+                .saturating_add(metrics.bounds.ymin.abs() as usize);
 
-        if let Ok(mut surface) = surface {
-            let pitch = surface.pitch() as usize;
-            {
-                let raw = surface.without_lock_mut();
-                if let Some(raw) = raw {
-                    // Fill with bg (RGBA8888 on LE: byte order [A, B, G, R])
-                    for pixel in raw.chunks_exact_mut(4) {
-                        pixel[0] = 0xFF;
-                        pixel[1] = bg.2;
-                        pixel[2] = bg.1;
-                        pixel[3] = bg.0;
+            for gy in 0..glyph_h {
+                for gx in 0..glyph_w {
+                    let coverage = bitmap[gy * glyph_w + gx];
+                    if coverage == 0 {
+                        continue;
+                    }
+                    let sx = x_start + gx;
+                    let sy = y_start + gy;
+                    if sx >= cw || sy >= cell_h {
+                        continue;
                     }
 
-                    if let Some(font) = &self.font {
-                        let (metrics, bitmap) = font.rasterize(ch, self.font_size);
-                        let glyph_w = metrics.bounds.width as usize;
-                        let glyph_h = metrics.bounds.height as usize;
-                        let x_start = if metrics.bounds.xmin < 0.0 {
-                            0
-                        } else {
-                            metrics.bounds.xmin as usize
-                        };
-                        let baseline = cell_h as f32 * 0.8;
-                        let y_start = (baseline as usize)
-                            .saturating_sub(glyph_h)
-                            .saturating_add(metrics.bounds.ymin.abs() as usize);
+                    let alpha = coverage as f32 / 255.0;
+                    let r = (fg.0 as f32 * alpha + bg.0 as f32 * (1.0 - alpha)) as u8;
+                    let g = (fg.1 as f32 * alpha + bg.1 as f32 * (1.0 - alpha)) as u8;
+                    let b = (fg.2 as f32 * alpha + bg.2 as f32 * (1.0 - alpha)) as u8;
 
-                        for gy in 0..glyph_h {
-                            for gx in 0..glyph_w {
-                                let coverage = bitmap[gy * glyph_w + gx];
-                                if coverage == 0 {
-                                    continue;
-                                }
-                                let alpha = coverage as f32 / 255.0;
-                                let sx = x_start + gx;
-                                let sy = y_start + gy;
-                                if sx >= cw || sy >= cell_h {
-                                    continue;
-                                }
-                                let idx = sy * pitch + sx * 4;
-                                if idx + 3 < raw.len() {
-                                    let r = (fg.0 as f32 * alpha + bg.0 as f32 * (1.0 - alpha)) as u8;
-                                    let g = (fg.1 as f32 * alpha + bg.1 as f32 * (1.0 - alpha)) as u8;
-                                    let b = (fg.2 as f32 * alpha + bg.2 as f32 * (1.0 - alpha)) as u8;
-                                    raw[idx] = 0xFF;
-                                    raw[idx + 1] = b;
-                                    raw[idx + 2] = g;
-                                    raw[idx + 3] = r;
-                                }
-                            }
-                        }
+                    self.canvas.set_draw_color(Color::RGB(r, g, b));
+                    let _ = self.canvas.draw_line(
+                        sdl2::rect::Point::new((pixel_x + sx) as i32, (pixel_y + sy) as i32),
+                        sdl2::rect::Point::new((pixel_x + sx) as i32, (pixel_y + sy) as i32),
+                    );
 
-                        // Fake bold: shift right by 1px and composite
-                        if bold && cw > 1 {
-                            for sy in 0..cell_h {
-                                for sx in (1..cw).rev() {
-                                    let src_idx = sy * pitch + (sx - 1) * 4;
-                                    let dst_idx = sy * pitch + sx * 4;
-                                    if src_idx + 3 < raw.len() && dst_idx + 3 < raw.len() {
-                                        if raw[src_idx + 3] > 0 {
-                                            raw[dst_idx] = raw[src_idx];
-                                            raw[dst_idx + 1] = raw[src_idx + 1];
-                                            raw[dst_idx + 2] = raw[src_idx + 2];
-                                            raw[dst_idx + 3] = 0xFF;
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    // Fake bold: also draw 1px to the right
+                    if bold && sx + 1 < cw {
+                        let _ = self.canvas.draw_line(
+                            sdl2::rect::Point::new((pixel_x + sx + 1) as i32, (pixel_y + sy) as i32),
+                            sdl2::rect::Point::new((pixel_x + sx + 1) as i32, (pixel_y + sy) as i32),
+                        );
                     }
                 }
             }
-
-            let texture_creator = self.canvas.texture_creator();
-            if let Ok(texture) = surface.as_texture(&texture_creator) {
-                let _ = self.canvas.copy(
-                    &texture,
-                    None,
-                    Rect::new(pixel_x as i32, pixel_y as i32, cw as u32, cell_h as u32),
-                );
-            };
-
         }
     }
 

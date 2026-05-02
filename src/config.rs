@@ -51,7 +51,7 @@ pub struct KeybindConfig {
     pub prev_tab: String,
 }
 
-fn default_font_family() -> String { "monospace".to_string() }
+fn default_font_family() -> String { "mono".to_string() }
 fn default_font_size() -> f32 { 14.0 }
 fn default_cursor_style() -> String { "block".to_string() }
 fn default_true() -> bool { true }
@@ -221,7 +221,7 @@ scrollback_lines = 5000
         assert_eq!(config.render.font_size, 18.0);
         assert_eq!(config.render.scrollback_lines, 5000);
         // Defaults for unspecified fields
-        assert_eq!(config.render.font_family, "monospace");
+        assert_eq!(config.render.font_family, "mono");
         assert_eq!(config.render.cursor_style, "block");
     }
 
