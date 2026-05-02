@@ -261,11 +261,11 @@ impl Renderer {
             {
                 let raw = surface.without_lock_mut();
                 if let Some(raw) = raw {
-                    // Fill with bg
+                    // Fill with bg (RGBA8888 on LE: [R, G, B, A])
                     for pixel in raw.chunks_exact_mut(4) {
-                        pixel[0] = bg.2;
+                        pixel[0] = bg.0;
                         pixel[1] = bg.1;
-                        pixel[2] = bg.0;
+                        pixel[2] = bg.2;
                         pixel[3] = 0xFF;
                     }
 
@@ -280,8 +280,8 @@ impl Renderer {
                         };
                         let baseline = cell_h as f32 * 0.8;
                         let y_start = (baseline as usize)
-                            .saturating_sub(metrics.bounds.ymin.abs() as usize)
-                            .saturating_sub(glyph_h);
+                            .saturating_sub(glyph_h)
+                            .saturating_add(metrics.bounds.ymin.abs() as usize);
 
                         for gy in 0..glyph_h {
                             for gx in 0..glyph_w {
@@ -300,9 +300,9 @@ impl Renderer {
                                     let r = (fg.0 as f32 * alpha + bg.0 as f32 * (1.0 - alpha)) as u8;
                                     let g = (fg.1 as f32 * alpha + bg.1 as f32 * (1.0 - alpha)) as u8;
                                     let b = (fg.2 as f32 * alpha + bg.2 as f32 * (1.0 - alpha)) as u8;
-                                    raw[idx] = b;
+                                    raw[idx] = r;
                                     raw[idx + 1] = g;
-                                    raw[idx + 2] = r;
+                                    raw[idx + 2] = b;
                                     raw[idx + 3] = 0xFF;
                                 }
                             }

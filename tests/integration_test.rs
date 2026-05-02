@@ -39,11 +39,15 @@ fn test_buffer_scrollback_integration() {
 #[test]
 fn test_ansi_to_buffer_flow() {
     let actions = ansi::parse("AB\x1B[31mC\x1B[0mD\nE");
-    assert_eq!(actions.len(), 6);
+    assert_eq!(actions.len(), 8);
     assert_eq!(actions[0], ansi::Action::Write('A'));
+    assert_eq!(actions[1], ansi::Action::Write('B'));
     assert_eq!(actions[2], ansi::Action::SetFgColor(ansi::Color::Red));
     assert_eq!(actions[3], ansi::Action::Write('C'));
     assert_eq!(actions[4], ansi::Action::Reset);
+    assert_eq!(actions[5], ansi::Action::Write('D'));
+    assert_eq!(actions[6], ansi::Action::Newline);
+    assert_eq!(actions[7], ansi::Action::Write('E'));
 }
 
 #[test]
