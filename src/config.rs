@@ -149,25 +149,50 @@ pub fn resolve_font_path(font_family: &str) -> Option<PathBuf> {
         if let Ok(entries) = std::fs::read_dir(dir_path) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.is_file() {
-                    let name = path
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_lowercase();
-                    let family_lower = font_family.to_lowercase();
-                    if name.contains(&family_lower) {
-                        if let Some(ext) = path.extension() {
-                            if extensions.contains(&ext.to_string_lossy().as_ref()) {
-                                return Some(path);
-                            }
-                        }
+                if path.is_dir() {
+                    if let result @ Some(_) = search_dir_recursive(&path, font_family, &extensions) {
+                        return result;
+                    }
+                } else if path.is_file() {
+                    if let result @ Some(_) = matches_font(&path, font_family, &extensions) {
+                        return result;
                     }
                 }
             }
         }
     }
 
+    None
+}
+
+fn search_dir_recursive(dir: &std::path::Path, font_family: &str, extensions: &[&str]) -> Option<PathBuf> {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let result @ Some(_) = search_dir_recursive(&path, font_family, extensions) {
+                    return result;
+                }
+            } else if path.is_file() {
+                if let result @ Some(_) = matches_font(&path, font_family, extensions) {
+                    return result;
+                }
+            }
+        }
+    }
+    None
+}
+
+fn matches_font(path: &std::path::Path, font_family: &str, extensions: &[&str]) -> Option<PathBuf> {
+    let name = path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+    let family_lower = font_family.to_lowercase();
+    if name.contains(&family_lower) {
+        if let Some(ext) = path.extension() {
+            if extensions.contains(&ext.to_string_lossy().as_ref()) {
+                return Some(path.to_path_buf());
+            }
+        }
+    }
     None
 }
 

@@ -261,7 +261,7 @@ impl Renderer {
             {
                 let raw = surface.without_lock_mut();
                 if let Some(raw) = raw {
-                    // Fill with bg (RGBA8888 on LE u32=0xRRGGBBAA → bytes [A, B, G, R])
+                    // Fill with bg (RGBA8888 on LE: byte order [A, B, G, R])
                     for pixel in raw.chunks_exact_mut(4) {
                         pixel[0] = 0xFF;
                         pixel[1] = bg.2;
