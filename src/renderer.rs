@@ -91,10 +91,13 @@ impl Renderer {
         if let Some(f) = font {
             let (metrics, _) = f.rasterize('M', font_size);
             let w = (metrics.advance_width.ceil() as usize).max(4);
-            let line_h = metrics.advance_height.ceil() as usize;
+
+            // Fontdue's advance_height is often 0, so compute proper line height
+            // Use a typical 1.2x line spacing multiplier on the glyph height
             let glyph_h = metrics.bounds.height.ceil() as usize;
-            let h = line_h.max(glyph_h).max(8);
-            (w, h)
+            let h = ((glyph_h as f32) * 1.2).ceil() as usize;
+
+            (w, h.max(10))
         } else {
             (DEFAULT_CELL_WIDTH, DEFAULT_CELL_HEIGHT)
         }
@@ -259,10 +262,10 @@ impl Renderer {
             } else {
                 metrics.bounds.xmin as usize
             };
+            // Position glyph: baseline is at ~80% down the cell
+            // y_start = baseline - glyph_h + abs(ymin) (because ymin is negative for descenders)
             let baseline = cell_h as f32 * 0.8;
-            let y_start = (baseline as usize)
-                .saturating_sub(glyph_h)
-                .saturating_add(metrics.bounds.ymin.abs() as usize);
+            let y_start = (baseline - glyph_h as f32 + metrics.bounds.ymin.abs()).max(0.0) as usize;
 
             for gy in 0..glyph_h {
                 for gx in 0..glyph_w {
