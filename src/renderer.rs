@@ -261,12 +261,12 @@ impl Renderer {
             {
                 let raw = surface.without_lock_mut();
                 if let Some(raw) = raw {
-                    // Fill with bg (RGBA8888 on LE: [R, G, B, A])
+                    // Fill with bg (RGBA8888 on LE u32=0xRRGGBBAA → bytes [A, B, G, R])
                     for pixel in raw.chunks_exact_mut(4) {
-                        pixel[0] = bg.0;
-                        pixel[1] = bg.1;
-                        pixel[2] = bg.2;
-                        pixel[3] = 0xFF;
+                        pixel[0] = 0xFF;
+                        pixel[1] = bg.2;
+                        pixel[2] = bg.1;
+                        pixel[3] = bg.0;
                     }
 
                     if let Some(font) = &self.font {
@@ -300,10 +300,10 @@ impl Renderer {
                                     let r = (fg.0 as f32 * alpha + bg.0 as f32 * (1.0 - alpha)) as u8;
                                     let g = (fg.1 as f32 * alpha + bg.1 as f32 * (1.0 - alpha)) as u8;
                                     let b = (fg.2 as f32 * alpha + bg.2 as f32 * (1.0 - alpha)) as u8;
-                                    raw[idx] = r;
-                                    raw[idx + 1] = g;
-                                    raw[idx + 2] = b;
-                                    raw[idx + 3] = 0xFF;
+                                    raw[idx] = 0xFF;
+                                    raw[idx + 1] = b;
+                                    raw[idx + 2] = g;
+                                    raw[idx + 3] = r;
                                 }
                             }
                         }
