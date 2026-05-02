@@ -245,7 +245,7 @@ impl Renderer {
         &mut self,
         ch: char,
         fg: (u8, u8, u8),
-        bg: (u8, u8, u8),
+        _bg: (u8, u8, u8),
         _bold: bool,
         pixel_x: usize,
         pixel_y: usize,
@@ -266,54 +266,27 @@ impl Renderer {
             let baseline = cell_h as f32 * 0.8;
             let y_start = (baseline - glyph_h as f32 + metrics.bounds.ymin.abs()).max(0.0) as usize;
 
-            // Create RGB24 surface (3 bytes per pixel, no alpha byte confusion)
-            let surface = sdl2::surface::Surface::new(
-                cw as u32,
-                cell_h as u32,
-                sdl2::pixels::PixelFormatEnum::RGB24,
-            );
-
-            if let Ok(mut surface) = surface {
-                let pitch = surface.pitch() as usize;
-                {
-                    let raw = surface.without_lock_mut().unwrap();
-                    // Fill with bg color (RGB24 = [R, G, B])
-                    for pixel in raw.chunks_exact_mut(3) {
-                        pixel[0] = bg.0;
-                        pixel[1] = bg.1;
-                        pixel[2] = bg.2;
+            // Draw each glyph pixel as a 2x2 block for visibility
+            self.canvas.set_draw_color(Color::RGB(fg.0, fg.1, fg.2));
+            for gy in 0..glyph_h {
+                for gx in 0..glyph_w {
+                    let coverage = bitmap[gy * glyph_w + gx];
+                    if coverage < 50 { // Low threshold to catch more pixels
+                        continue;
                     }
-
-                    // Draw glyph pixels - use simple threshold for visibility
-                    for gy in 0..glyph_h {
-                        for gx in 0..glyph_w {
-                            let coverage = bitmap[gy * glyph_w + gx];
-                            if coverage < 128 {
-                                continue; // Skip too-transparent pixels
-                            }
-                            let sx = x_start + gx;
-                            let sy = y_start + gy;
-                            if sx >= cw || sy >= cell_h {
-                                continue;
-                            }
-                            let idx = sy * pitch + sx * 3;
-                            if idx + 2 < raw.len() {
-                                raw[idx] = fg.0;     // R
-                                raw[idx + 1] = fg.1; // G
-                                raw[idx + 2] = fg.2; // B
-                            }
-                        }
+                    let sx = x_start + gx;
+                    let sy = y_start + gy;
+                    if sx >= cw || sy >= cell_h {
+                        continue;
                     }
+                    // Draw 2x2 block for each glyph pixel
+                    let _ = self.canvas.fill_rect(Rect::new(
+                        (pixel_x + sx * 2) as i32,
+                        (pixel_y + sy * 2) as i32,
+                        2,
+                        2,
+                    ));
                 }
-
-                let texture_creator = self.canvas.texture_creator();
-                if let Ok(texture) = surface.as_texture(&texture_creator) {
-                    let _ = self.canvas.copy(
-                        &texture,
-                        None,
-                        Rect::new(pixel_x as i32, pixel_y as i32, cw as u32, cell_h as u32),
-                    );
-                };
             }
         }
     }
