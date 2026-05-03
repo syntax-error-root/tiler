@@ -1,6 +1,7 @@
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Canvas, TextureCreator};
+use sdl2::surface::Surface;
 use sdl2::video::{Window, WindowContext};
 
 use std::collections::HashMap;
@@ -67,12 +68,16 @@ impl Renderer {
     pub fn new(sdl_context: &sdl2::Sdl, config: &Config) -> Result<Self, String> {
         let video_subsystem = sdl_context.video().map_err(|e| e.to_string())?;
 
-        let window = video_subsystem
+        let mut window = video_subsystem
             .window("term-tiler", config.render.window_width, config.render.window_height)
             .position_centered()
             .resizable()
             .build()
             .map_err(|e| e.to_string())?;
+
+        if let Ok(icon) = create_icon() {
+            let _ = window.set_icon(icon);
+        }
 
         let mut canvas = window
             .into_canvas()
@@ -519,4 +524,74 @@ pub struct PaneData {
     pub cursor_y: usize,
     pub saved_cursor: Option<(usize, usize)>,
     pub style: buffer::Style,
+}
+
+/// Generate the app icon: dark rounded tile with `>_` prompt and subtle grid.
+fn create_icon() -> Result<Surface<'static>, String> {
+    const S: u32 = 64;
+    let mut surface = Surface::new(S, S, sdl2::pixels::PixelFormatEnum::ARGB8888)
+        .map_err(|e| e.to_string())?;
+
+    let bg = Color::RGBA(0x1e, 0x1e, 0x2e, 0xff);
+    let border = Color::RGBA(0x45, 0x47, 0x5a, 0xff);
+    let grid = Color::RGBA(0x31, 0x32, 0x44, 0xff);
+    let blue = Color::RGBA(0x89, 0xb4, 0xfa, 0xff);
+    let green = Color::RGBA(0xa6, 0xe3, 0xa1, 0xff);
+
+    // Background
+    surface.fill_rect(None, bg).map_err(|e| e.to_string())?;
+
+    // Dashed grid lines at center
+    for i in (8..56).step_by(4) {
+        surface.fill_rect(Some(Rect::new(31, i, 2, 2)), grid).ok();
+        surface.fill_rect(Some(Rect::new(i, 31, 2, 2)), grid).ok();
+    }
+
+    // > prompt — top stroke: (14,20) → (30,32)
+    draw_thick_line(&mut surface, 14, 20, 30, 32, blue, 4)?;
+    // > prompt — bottom stroke: (30,32) → (14,44)
+    draw_thick_line(&mut surface, 30, 32, 14, 44, blue, 4)?;
+
+    // _ underscore
+    surface.fill_rect(Some(Rect::new(33, 42, 16, 3)), green).ok();
+
+    // Cursor block
+    surface.fill_rect(Some(Rect::new(52, 34, 4, 10)), blue).ok();
+
+    // Border (1px on each edge)
+    surface.fill_rect(Some(Rect::new(0, 0, S, 1)), border).ok();
+    surface.fill_rect(Some(Rect::new(0, (S - 1) as i32, S, 1)), border).ok();
+    surface.fill_rect(Some(Rect::new(0, 0, 1, S)), border).ok();
+    surface.fill_rect(Some(Rect::new((S - 1) as i32, 0, 1, S)), border).ok();
+
+    Ok(surface)
+}
+
+/// Bresenham thick line drawing on a surface.
+fn draw_thick_line(
+    surface: &mut Surface,
+    x0: i32, y0: i32, x1: i32, y1: i32,
+    color: Color, thickness: i32,
+) -> Result<(), String> {
+    let dx = (x1 - x0).abs();
+    let dy = (y1 - y0).abs();
+    let sx = if x0 < x1 { 1 } else { -1 };
+    let sy = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx - dy;
+    let mut x = x0;
+    let mut y = y0;
+    let half = thickness / 2;
+
+    loop {
+        surface.fill_rect(
+            Some(Rect::new(x - half, y - half, thickness as u32, thickness as u32)),
+            color,
+        ).ok();
+
+        if x == x1 && y == y1 { break; }
+        let e2 = 2 * err;
+        if e2 > -dy { err -= dy; x += sx; }
+        if e2 < dx { err += dx; y += sy; }
+    }
+    Ok(())
 }
