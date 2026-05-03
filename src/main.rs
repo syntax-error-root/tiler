@@ -440,6 +440,12 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
             ansi::Action::DeleteLines(n) => {
                 pane.buffer.delete_lines(ps.cursor_y, *n);
             }
+            ansi::Action::InsertChars(n) => {
+                pane.buffer.insert_chars(ps.cursor_x, ps.cursor_y, *n);
+            }
+            ansi::Action::DeleteChars(n) => {
+                pane.buffer.delete_chars(ps.cursor_x, ps.cursor_y, *n);
+            }
         }
     }
 }

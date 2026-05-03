@@ -237,6 +237,41 @@ impl Buffer {
     pub fn scrollback_len(&self) -> usize {
         self.scrollback.len()
     }
+
+    pub fn insert_chars(&mut self, x: usize, y: usize, n: usize) {
+        if y >= self.height || x >= self.width || n == 0 {
+            return;
+        }
+        let row = &mut self.cells[y];
+        let remaining = self.width - x;
+        let n = n.min(remaining);
+        for i in (x..self.width).rev() {
+            if i >= n {
+                row[i] = row[i - n].clone();
+            } else {
+                break;
+            }
+        }
+        for i in x..x + n {
+            row[i] = Cell::default();
+        }
+    }
+
+    pub fn delete_chars(&mut self, x: usize, y: usize, n: usize) {
+        if y >= self.height || x >= self.width || n == 0 {
+            return;
+        }
+        let row = &mut self.cells[y];
+        let remaining = self.width - x;
+        let n = n.min(remaining);
+        for i in x..self.width {
+            if i + n < self.width {
+                row[i] = row[i + n].clone();
+            } else {
+                row[i] = Cell::default();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -390,5 +425,34 @@ mod tests {
         assert_eq!(buffer.get(0, 1).unwrap().ch, 'D');
         assert_eq!(buffer.get(0, 2).unwrap().ch, ' ');
         assert_eq!(buffer.get(0, 3).unwrap().ch, ' ');
+    }
+
+    #[test]
+    fn test_insert_chars() {
+        let mut buffer = Buffer::new(5, 1);
+        buffer.write(0, 0, 'A', Style::default());
+        buffer.write(1, 0, 'B', Style::default());
+        buffer.write(2, 0, 'C', Style::default());
+        buffer.write(3, 0, 'D', Style::default());
+        buffer.insert_chars(1, 0, 2);
+        assert_eq!(buffer.get(0, 0).unwrap().ch, 'A');
+        assert_eq!(buffer.get(1, 0).unwrap().ch, ' ');
+        assert_eq!(buffer.get(2, 0).unwrap().ch, ' ');
+        assert_eq!(buffer.get(3, 0).unwrap().ch, 'B');
+        assert_eq!(buffer.get(4, 0).unwrap().ch, 'C');
+    }
+
+    #[test]
+    fn test_delete_chars() {
+        let mut buffer = Buffer::new(5, 1);
+        buffer.write(0, 0, 'A', Style::default());
+        buffer.write(1, 0, 'B', Style::default());
+        buffer.write(2, 0, 'C', Style::default());
+        buffer.write(3, 0, 'D', Style::default());
+        buffer.delete_chars(1, 0, 2);
+        assert_eq!(buffer.get(0, 0).unwrap().ch, 'A');
+        assert_eq!(buffer.get(1, 0).unwrap().ch, 'D');
+        assert_eq!(buffer.get(2, 0).unwrap().ch, ' ');
+        assert_eq!(buffer.get(3, 0).unwrap().ch, ' ');
     }
 }

@@ -27,6 +27,8 @@ pub enum Action {
     ClearScreen(ClearMode),
     InsertLines(usize),
     DeleteLines(usize),
+    InsertChars(usize),
+    DeleteChars(usize),
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -156,6 +158,8 @@ fn parse_escape_sequence(chars: &mut std::iter::Peekable<std::str::Chars>) -> Ve
             'u' => vec![Action::RestoreCursor],
             'L' => vec![Action::InsertLines(n.max(1))],
             'M' => vec![Action::DeleteLines(n.max(1))],
+            '@' => vec![Action::InsertChars(n.max(1))],
+            'P' => vec![Action::DeleteChars(n.max(1))],
             'm' => {
                 if params.is_empty() {
                     return vec![Action::Reset];
@@ -323,5 +327,13 @@ mod tests {
         assert_eq!(parse("\x1B[3M"), vec![Action::DeleteLines(3)]);
         assert_eq!(parse("\x1B[L"), vec![Action::InsertLines(1)]);
         assert_eq!(parse("\x1B[M"), vec![Action::DeleteLines(1)]);
+    }
+
+    #[test]
+    fn test_insert_delete_chars() {
+        assert_eq!(parse("\x1B[2@"), vec![Action::InsertChars(2)]);
+        assert_eq!(parse("\x1B[3P"), vec![Action::DeleteChars(3)]);
+        assert_eq!(parse("\x1B[@"), vec![Action::InsertChars(1)]);
+        assert_eq!(parse("\x1B[P"), vec![Action::DeleteChars(1)]);
     }
 }
