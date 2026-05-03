@@ -204,6 +204,36 @@ impl Buffer {
         self.scroll_offset = 0;
     }
 
+    pub fn insert_lines(&mut self, at_y: usize, n: usize) {
+        if at_y >= self.height || n == 0 {
+            return;
+        }
+        let n = n.min(self.height - at_y);
+        for _ in 0..n {
+            if at_y + n < self.height {
+                self.cells.pop();
+            }
+        }
+        for _ in 0..n {
+            self.cells.insert(at_y, vec![Cell::default(); self.width]);
+        }
+        self.cells.truncate(self.height);
+    }
+
+    pub fn delete_lines(&mut self, at_y: usize, n: usize) {
+        if at_y >= self.height || n == 0 {
+            return;
+        }
+        let n = n.min(self.height - at_y);
+        for _ in 0..n {
+            self.cells.remove(at_y);
+        }
+        for _ in 0..n {
+            self.cells.push(vec![Cell::default(); self.width]);
+        }
+        self.cells.truncate(self.height);
+    }
+
     pub fn scrollback_len(&self) -> usize {
         self.scrollback.len()
     }
@@ -332,5 +362,33 @@ mod tests {
         assert_eq!(buffer.width, 4);
         assert_eq!(buffer.height, 5);
         assert_eq!(buffer.get(1, 1).unwrap().ch, 'X');
+    }
+
+    #[test]
+    fn test_insert_lines() {
+        let mut buffer = Buffer::new(3, 4);
+        buffer.write(0, 0, 'A', Style::default());
+        buffer.write(0, 1, 'B', Style::default());
+        buffer.write(0, 2, 'C', Style::default());
+        buffer.write(0, 3, 'D', Style::default());
+        buffer.insert_lines(1, 2);
+        assert_eq!(buffer.get(0, 0).unwrap().ch, 'A');
+        assert_eq!(buffer.get(0, 1).unwrap().ch, ' ');
+        assert_eq!(buffer.get(0, 2).unwrap().ch, ' ');
+        assert_eq!(buffer.get(0, 3).unwrap().ch, 'B');
+    }
+
+    #[test]
+    fn test_delete_lines() {
+        let mut buffer = Buffer::new(3, 4);
+        buffer.write(0, 0, 'A', Style::default());
+        buffer.write(0, 1, 'B', Style::default());
+        buffer.write(0, 2, 'C', Style::default());
+        buffer.write(0, 3, 'D', Style::default());
+        buffer.delete_lines(1, 2);
+        assert_eq!(buffer.get(0, 0).unwrap().ch, 'A');
+        assert_eq!(buffer.get(0, 1).unwrap().ch, 'D');
+        assert_eq!(buffer.get(0, 2).unwrap().ch, ' ');
+        assert_eq!(buffer.get(0, 3).unwrap().ch, ' ');
     }
 }

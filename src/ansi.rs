@@ -25,6 +25,8 @@ pub enum Action {
     Reset,
     ClearLine(ClearMode),
     ClearScreen(ClearMode),
+    InsertLines(usize),
+    DeleteLines(usize),
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -152,6 +154,8 @@ fn parse_escape_sequence(chars: &mut std::iter::Peekable<std::str::Chars>) -> Ve
             }
             's' => vec![Action::SaveCursor],
             'u' => vec![Action::RestoreCursor],
+            'L' => vec![Action::InsertLines(n.max(1))],
+            'M' => vec![Action::DeleteLines(n.max(1))],
             'm' => {
                 if params.is_empty() {
                     return vec![Action::Reset];
@@ -311,5 +315,13 @@ mod tests {
             Action::RestoreCursor,
             Action::Write('C'),
         ]);
+    }
+
+    #[test]
+    fn test_insert_delete_lines() {
+        assert_eq!(parse("\x1B[2L"), vec![Action::InsertLines(2)]);
+        assert_eq!(parse("\x1B[3M"), vec![Action::DeleteLines(3)]);
+        assert_eq!(parse("\x1B[L"), vec![Action::InsertLines(1)]);
+        assert_eq!(parse("\x1B[M"), vec![Action::DeleteLines(1)]);
     }
 }
