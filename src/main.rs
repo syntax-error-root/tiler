@@ -214,6 +214,35 @@ fn main() -> Result<(), String> {
             }
         }
 
+        // Handle tabs with no living PTYs (all shells exited)
+        loop {
+            let dead_tab = layout.tabs.iter().enumerate().find(|(_, tab)| {
+                !tab.panes.is_empty()
+                    && !tab.panes.iter().any(|p| panes.contains_key(&p.id))
+            });
+
+            match dead_tab {
+                None => break,
+                Some((tab_idx, _)) => {
+                    if layout.tabs.len() > 1 {
+                        let pane_ids: Vec<usize> =
+                            layout.tabs[tab_idx].panes.iter().map(|p| p.id).collect();
+                        for id in pane_ids {
+                            panes.remove(&id);
+                        }
+                        layout.active_tab = tab_idx;
+                        layout.close_tab();
+                    } else {
+                        let pane_id = layout.focused_pane_id();
+                        if spawn_pane(&mut panes, pane_id, &layout).is_err() {
+                            layout.remove_pane(pane_id);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
         // --- Cursor blink ---
         cursor_blink_counter += 1;
         if cursor_blink_counter >= blink_interval {
