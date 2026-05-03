@@ -50,6 +50,9 @@ pub fn parse(input: &str) -> Vec<Action> {
                 chars.next();
                 let seq_actions = parse_escape_sequence(&mut chars);
                 actions.extend(seq_actions);
+            } else if let Some(&']') = chars.peek() {
+                chars.next();
+                consume_osc(&mut chars);
             }
         } else if ch == '\n' {
             actions.push(Action::Newline);
@@ -65,6 +68,24 @@ pub fn parse(input: &str) -> Vec<Action> {
     }
 
     actions
+}
+
+/// Consume an OSC (Operating System Command) sequence.
+/// OSC sequences start after \x1B] and end with BEL (\x07) or ST (\x1B\\).
+/// Used for window titles, hyperlinks, etc. — silently ignored.
+fn consume_osc(chars: &mut std::iter::Peekable<std::str::Chars>) {
+    loop {
+        match chars.next() {
+            None | Some('\x07') => break,
+            Some('\x1B') => {
+                if let Some(&'\\') = chars.peek() {
+                    chars.next();
+                    break;
+                }
+            }
+            Some(_) => continue,
+        }
+    }
 }
 
 fn parse_escape_sequence(chars: &mut std::iter::Peekable<std::str::Chars>) -> Vec<Action> {
@@ -244,6 +265,27 @@ mod tests {
             Action::Write('A'),
             Action::Newline,
             Action::Write('B'),
+        ]);
+    }
+
+    #[test]
+    fn test_osc_title_bel() {
+        let result = parse("\x1B]0;my title\x07text");
+        assert_eq!(result, vec![Action::Write('t'), Action::Write('e'), Action::Write('x'), Action::Write('t')]);
+    }
+
+    #[test]
+    fn test_osc_title_st() {
+        let result = parse("\x1B]2;title\x1B\\ok");
+        assert_eq!(result, vec![Action::Write('o'), Action::Write('k')]);
+    }
+
+    #[test]
+    fn test_osc_ignored_mid_text() {
+        let result = parse("before\x1B]0;title\x07after");
+        assert_eq!(result, vec![
+            Action::Write('b'), Action::Write('e'), Action::Write('f'), Action::Write('o'), Action::Write('r'), Action::Write('e'),
+            Action::Write('a'), Action::Write('f'), Action::Write('t'), Action::Write('e'), Action::Write('r'),
         ]);
     }
 }
