@@ -53,6 +53,12 @@ pub fn parse(input: &str) -> Vec<Action> {
             } else if let Some(&']') = chars.peek() {
                 chars.next();
                 consume_osc(&mut chars);
+            } else if let Some(&next) = chars.peek() {
+                match next {
+                    '7' => { chars.next(); actions.push(Action::SaveCursor); }
+                    '8' => { chars.next(); actions.push(Action::RestoreCursor); }
+                    _ => {}
+                }
             }
         } else if ch == '\n' {
             actions.push(Action::Newline);
@@ -286,6 +292,24 @@ mod tests {
         assert_eq!(result, vec![
             Action::Write('b'), Action::Write('e'), Action::Write('f'), Action::Write('o'), Action::Write('r'), Action::Write('e'),
             Action::Write('a'), Action::Write('f'), Action::Write('t'), Action::Write('e'), Action::Write('r'),
+        ]);
+    }
+
+    #[test]
+    fn test_decsc_decrc() {
+        assert_eq!(parse("\x1B7"), vec![Action::SaveCursor]);
+        assert_eq!(parse("\x1B8"), vec![Action::RestoreCursor]);
+    }
+
+    #[test]
+    fn test_decsc_mid_text() {
+        let result = parse("A\x1B7B\x1B8C");
+        assert_eq!(result, vec![
+            Action::Write('A'),
+            Action::SaveCursor,
+            Action::Write('B'),
+            Action::RestoreCursor,
+            Action::Write('C'),
         ]);
     }
 }
