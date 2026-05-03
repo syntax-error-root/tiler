@@ -60,6 +60,16 @@ pub fn handle_key(
         return (InputAction::Nothing, true); // ctrl_a_pending = true
     }
 
+    // Shift+PageUp/PageDown scrolls terminal scrollback
+    if shift && !ctrl && !alt {
+        if keycode == Some(Keycode::PageUp) {
+            return (InputAction::ScrollUp(10), false);
+        }
+        if keycode == Some(Keycode::PageDown) {
+            return (InputAction::ScrollDown(10), false);
+        }
+    }
+
     // Ctrl+C quit
     if ctrl && keycode == Some(Keycode::C) {
         return (InputAction::Quit, false);
@@ -272,5 +282,26 @@ mod tests {
         let (_, pending) = handle_key(Some(Keycode::A), Mod::LCTRLMOD, false);
         let (action, _) = handle_key(Some(Keycode::K), Mod::empty(), pending);
         assert_eq!(action, InputAction::Navigate(Direction::Up));
+    }
+
+    #[test]
+    fn test_shift_pageup_scrolls() {
+        let (action, _) = handle_key(Some(Keycode::PageUp), Mod::LSHIFTMOD, false);
+        assert_eq!(action, InputAction::ScrollUp(10));
+    }
+
+    #[test]
+    fn test_shift_pagedown_scrolls() {
+        let (action, _) = handle_key(Some(Keycode::PageDown), Mod::LSHIFTMOD, false);
+        assert_eq!(action, InputAction::ScrollDown(10));
+    }
+
+    #[test]
+    fn test_plain_pageup_forwards_to_pty() {
+        let (action, _) = handle_key(Some(Keycode::PageUp), Mod::empty(), false);
+        match action {
+            InputAction::ForwardToPty(bytes) => assert_eq!(bytes, vec![27, 91, 53, 126]),
+            _ => panic!("Expected ForwardToPty"),
+        }
     }
 }
