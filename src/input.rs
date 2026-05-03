@@ -40,6 +40,7 @@ pub fn handle_key(
                 Keycode::T => Some(InputAction::NewTab),
                 Keycode::W => Some(InputAction::CloseTab),
                 Keycode::N => Some(InputAction::NextTab),
+                Keycode::B => Some(InputAction::PrevTab),
                 _ => None,
             };
             if let Some(a) = action {

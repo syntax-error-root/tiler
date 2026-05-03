@@ -180,7 +180,7 @@ fn main() -> Result<(), String> {
                         if output.is_empty() {
                             break;
                         }
-                        if let Some(pane) = layout.active_panes_mut().iter_mut().find(|p| p.id == pane_id) {
+                        if let Some(pane) = layout.find_pane_mut(pane_id) {
                             let actions = ansi::parse(&String::from_utf8_lossy(&output));
                             process_pty_actions(pane, pane_state, &actions);
                             pane.buffer.reset_scroll();
@@ -246,7 +246,7 @@ fn spawn_pane(
 ) -> Result<(), String> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
     let new_pty = pty::PTY::new(shell.as_str(), &[])?;
-    if let Some(pane) = layout.active_panes().iter().find(|p| p.id == pane_id) {
+    if let Some(pane) = layout.find_pane(pane_id) {
         new_pty.set_window_size(pane.width as u16, pane.height as u16);
     }
     panes.insert(pane_id, PaneState {
@@ -261,7 +261,7 @@ fn spawn_pane(
 
 fn resize_pty(panes: &mut HashMap<usize, PaneState>, pane_id: usize, layout: &layout::Layout) {
     if let (Some(pane), Some(ps)) = (
-        layout.active_panes().iter().find(|p| p.id == pane_id),
+        layout.find_pane(pane_id),
         panes.get_mut(&pane_id),
     ) {
         ps.pty.set_window_size(pane.width as u16, pane.height as u16);
@@ -354,9 +354,10 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
 }
 
 fn ensure_cursor_in_bounds(pane: &mut layout::Pane, ps: &mut PaneState) {
+    if pane.height == 0 { return; }
     while ps.cursor_y >= pane.height {
         pane.buffer.scroll_up(1);
-        ps.cursor_y = pane.height.saturating_sub(1);
+        ps.cursor_y = pane.height - 1;
     }
 }
 

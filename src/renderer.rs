@@ -448,6 +448,11 @@ impl Renderer {
         let bar_y = 0usize;
         let bar_height = self.cell_height;
         let tab_width = self.cell_width * 12;
+        let window_pixel_width = self.canvas.window().size().0 as usize;
+
+        // Fill entire tab bar background
+        self.canvas.set_draw_color(Color::RGB(40, 40, 50));
+        let _ = self.canvas.fill_rect(Rect::new(0, 0, window_pixel_width as u32, bar_height as u32));
 
         for (i, _tab) in layout.tabs.iter().enumerate() {
             let x = i * tab_width;

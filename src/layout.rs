@@ -90,6 +90,24 @@ impl Layout {
         self.tabs[self.active_tab].focused
     }
 
+    pub fn find_pane(&self, pane_id: usize) -> Option<&Pane> {
+        for tab in &self.tabs {
+            if let Some(pane) = tab.panes.iter().find(|p| p.id == pane_id) {
+                return Some(pane);
+            }
+        }
+        None
+    }
+
+    pub fn find_pane_mut(&mut self, pane_id: usize) -> Option<&mut Pane> {
+        for tab in &mut self.tabs {
+            if let Some(pane) = tab.panes.iter_mut().find(|p| p.id == pane_id) {
+                return Some(pane);
+            }
+        }
+        None
+    }
+
     pub fn split_horizontal(&mut self, pane_id: usize) -> Result<(), String> {
         let tab = &mut self.tabs[self.active_tab];
         let pane_index = tab.panes.iter().position(|p| p.id == pane_id)
@@ -253,22 +271,27 @@ impl Layout {
     }
 
     pub fn remove_pane(&mut self, pane_id: usize) {
-        let tab = &mut self.tabs[self.active_tab];
-        tab.panes.retain(|p| p.id != pane_id);
-        if tab.panes.is_empty() {
-            let initial_pane = Pane {
-                id: self.next_pane_id,
-                x: 0,
-                y: 0,
-                width: self.width,
-                height: self.height,
-                buffer: buffer::Buffer::new(self.width, self.height),
-            };
-            self.next_pane_id += 1;
-            tab.panes.push(initial_pane);
-        }
-        if tab.focused >= tab.panes.len() {
-            tab.focused = tab.panes.len() - 1;
+        for tab in &mut self.tabs {
+            let had_pane = tab.panes.iter().any(|p| p.id == pane_id);
+            if !had_pane {
+                continue;
+            }
+            tab.panes.retain(|p| p.id != pane_id);
+            if tab.panes.is_empty() {
+                let initial_pane = Pane {
+                    id: self.next_pane_id,
+                    x: 0,
+                    y: 0,
+                    width: self.width,
+                    height: self.height,
+                    buffer: buffer::Buffer::new(self.width, self.height),
+                };
+                self.next_pane_id += 1;
+                tab.panes.push(initial_pane);
+            }
+            if tab.focused >= tab.panes.len() {
+                tab.focused = tab.panes.len() - 1;
+            }
         }
     }
 
