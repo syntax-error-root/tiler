@@ -272,11 +272,17 @@ impl Layout {
 
     pub fn remove_pane(&mut self, pane_id: usize) {
         for tab in &mut self.tabs {
-            let had_pane = tab.panes.iter().any(|p| p.id == pane_id);
+            let removed_rect = tab.panes.iter()
+                .find(|p| p.id == pane_id)
+                .map(|p| (p.x, p.y, p.width, p.height));
+            let had_pane = removed_rect.is_some();
             if !had_pane {
                 continue;
             }
+            let (rx, ry, rw, rh) = removed_rect.unwrap();
+
             tab.panes.retain(|p| p.id != pane_id);
+
             if tab.panes.is_empty() {
                 let initial_pane = Pane {
                     id: self.next_pane_id,
@@ -288,6 +294,8 @@ impl Layout {
                 };
                 self.next_pane_id += 1;
                 tab.panes.push(initial_pane);
+            } else {
+                absorb_neighbor(&mut tab.panes, rx, ry, rw, rh);
             }
             if tab.focused >= tab.panes.len() {
                 tab.focused = tab.panes.len() - 1;
@@ -337,6 +345,45 @@ impl Layout {
     pub fn prev_tab(&mut self) {
         if self.tabs.len() > 1 {
             self.active_tab = (self.active_tab + self.tabs.len() - 1) % self.tabs.len();
+        }
+    }
+}
+
+/// When a pane is removed, expand the neighbor that shared a full edge with it
+/// to absorb the freed space. Handles vertical splits (side-by-side) and
+/// horizontal splits (stacked), including nested splits.
+fn absorb_neighbor(panes: &mut Vec<Pane>, rx: usize, ry: usize, rw: usize, rh: usize) {
+    // Vertical split: neighbor is to the left or right, same row range
+    for pane in panes.iter_mut() {
+        // Neighbor is to the left of removed
+        if pane.x + pane.width == rx && pane.y == ry && pane.height == rh {
+            pane.width += rw;
+            pane.buffer.resize(pane.width, pane.height);
+            return;
+        }
+        // Neighbor is to the right of removed
+        if pane.x == rx + rw && pane.y == ry && pane.height == rh {
+            pane.x = rx;
+            pane.width += rw;
+            pane.buffer.resize(pane.width, pane.height);
+            return;
+        }
+    }
+
+    // Horizontal split: neighbor is above or below, same column range
+    for pane in panes.iter_mut() {
+        // Neighbor is above removed
+        if pane.y + pane.height == ry && pane.x == rx && pane.width == rw {
+            pane.height += rh;
+            pane.buffer.resize(pane.width, pane.height);
+            return;
+        }
+        // Neighbor is below removed
+        if pane.y == ry + rh && pane.x == rx && pane.width == rw {
+            pane.y = ry;
+            pane.height += rh;
+            pane.buffer.resize(pane.width, pane.height);
+            return;
         }
     }
 }

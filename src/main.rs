@@ -202,6 +202,8 @@ fn main() -> Result<(), String> {
         for pane_id in panes_to_remove {
             layout.remove_pane(pane_id);
             panes.remove(&pane_id);
+            // Resize surviving panes after neighbor absorption
+            update_all_pane_sizes(&layout, &mut panes);
         }
 
         // If layout created a fallback pane, spawn a PTY for it
