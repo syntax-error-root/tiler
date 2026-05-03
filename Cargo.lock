@@ -237,18 +237,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "term-tiler"
-version = "0.2.0"
-dependencies = [
- "directories",
- "fontdue",
- "libc",
- "sdl2",
- "serde",
- "toml",
-]
-
-[[package]]
 name = "thiserror"
 version = "2.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -266,6 +254,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tiler"
+version = "0.2.0"
+dependencies = [
+ "directories",
+ "fontdue",
+ "libc",
+ "sdl2",
+ "serde",
+ "toml",
 ]
 
 [[package]]

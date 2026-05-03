@@ -1,4 +1,4 @@
-# term-tiler
+# tiler
 
 A lightweight, CPU-only terminal emulator with tiling support. Inspired by Ghostty, but without any GPU dependency — pure software rendering via SDL2.
 
@@ -38,12 +38,12 @@ sudo apt-get install libsdl2-dev
 cargo build --release
 
 # Run
-./target/release/term-tiler
+./target/release/tiler
 ```
 
 ## Configuration
 
-Config file location: `~/.config/term-tiler/config.toml`
+Config file location: `~/.config/tiler/config.toml`
 
 ```toml
 [render]
@@ -78,7 +78,7 @@ All fields are optional — unspecified values use sensible defaults.
 cargo clean
 
 # Remove the config directory
-rm -rf ~/.config/term-tiler
+rm -rf ~/.config/tiler
 
 # (Optional) Uninstall SDL2 if no longer needed
 sudo apt-get remove libsdl2-dev

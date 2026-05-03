@@ -110,7 +110,7 @@ impl Default for KeybindConfig {
 }
 
 pub fn load_config() -> Config {
-    let config_path = directories::ProjectDirs::from("", "", "term-tiler")
+    let config_path = directories::ProjectDirs::from("", "", "tiler")
         .map(|d| d.config_dir().join("config.toml"));
 
     if let Some(path) = config_path {

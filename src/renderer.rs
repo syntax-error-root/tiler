@@ -69,7 +69,7 @@ impl Renderer {
         let video_subsystem = sdl_context.video().map_err(|e| e.to_string())?;
 
         let mut window = video_subsystem
-            .window("term-tiler", config.render.window_width, config.render.window_height)
+            .window("tiler", config.render.window_width, config.render.window_height)
             .position_centered()
             .resizable()
             .build()

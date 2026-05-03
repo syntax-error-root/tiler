@@ -1,7 +1,7 @@
-use term_tiler::buffer;
-use term_tiler::ansi;
-use term_tiler::layout;
-use term_tiler::config;
+use tiler::buffer;
+use tiler::ansi;
+use tiler::layout;
+use tiler::config;
 
 #[test]
 fn test_config_defaults() {

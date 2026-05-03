@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use sdl2::event::{Event, WindowEvent};
 
-use term_tiler::ansi;
-use term_tiler::buffer;
-use term_tiler::config;
-use term_tiler::input;
-use term_tiler::layout;
-use term_tiler::pty;
-use term_tiler::renderer::{self, PaneData};
+use tiler::ansi;
+use tiler::buffer;
+use tiler::config;
+use tiler::input;
+use tiler::layout;
+use tiler::pty;
+use tiler::renderer::{self, PaneData};
 
 struct PaneState {
     pty: pty::PTY,
