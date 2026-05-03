@@ -414,7 +414,11 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
                         }
                     }
                     ansi::ClearMode::All => {
-                        pane.buffer.clear();
+                        for y in 0..pane.height {
+                            for x in 0..pane.width {
+                                pane.buffer.write(x, y, ' ', ps.style);
+                            }
+                        }
                     }
                 }
             }
