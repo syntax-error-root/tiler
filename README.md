@@ -71,6 +71,19 @@ prev_tab = "p"
 
 All fields are optional — unspecified values use sensible defaults.
 
+## Uninstall
+
+```bash
+# Remove the compiled binary and build artifacts
+cargo clean
+
+# Remove the config directory
+rm -rf ~/.config/term-tiler
+
+# (Optional) Uninstall SDL2 if no longer needed
+sudo apt-get remove libsdl2-dev
+```
+
 ## Requirements
 
 - Rust 1.70+
