@@ -301,6 +301,15 @@ impl Buffer {
             return;
         }
         let row = &mut self.cells[y];
+        // Clear wide continuation at boundary
+        if x > 0 && row[x - 1].ch != ' ' && !row[x - 1].wide {
+            // Check if previous cell is a wide char primary
+            if x + 1 < self.width && row[x + 1].wide {
+                // Not a wide char primary, ok
+            } else if x > 0 && row[x].wide {
+                // We're at a continuation cell — back up to the primary
+            }
+        }
         let remaining = self.width - x;
         let n = n.min(remaining);
         for i in (x..self.width).rev() {
@@ -313,6 +322,7 @@ impl Buffer {
         for i in x..x + n {
             row[i] = Cell::default();
         }
+        fix_wide_boundaries(row);
     }
 
     pub fn delete_chars(&mut self, x: usize, y: usize, n: usize) {
@@ -329,6 +339,7 @@ impl Buffer {
                 row[i] = Cell::default();
             }
         }
+        fix_wide_boundaries(row);
     }
 }
 
@@ -380,6 +391,22 @@ pub fn is_wide(ch: char) -> bool {
     || (0xFF01..=0xFF60).contains(&cp)
     // CJK punctuation
     || (0x3000..=0x303F).contains(&cp)
+}
+
+fn fix_wide_boundaries(row: &mut Vec<Cell>) {
+    let width = row.len();
+    let mut x = 0;
+    while x < width {
+        if is_wide(row[x].ch) && x + 1 < width {
+            row[x].wide = false;
+            row[x + 1].wide = true;
+            row[x + 1].ch = ' ';
+            x += 2;
+        } else {
+            row[x].wide = false;
+            x += 1;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -640,5 +667,43 @@ mod tests {
         buffer.restore_main_screen();
         assert_eq!(buffer.get(0, 0).unwrap().ch, 'A');
         assert_eq!(buffer.get(0, 1).unwrap().ch, 'B');
+    }
+
+    #[test]
+    fn test_wide_char_marking() {
+        let mut buffer = Buffer::new(10, 1);
+        // Write CJK character (wide)
+        buffer.write(0, 0, '\u{4E00}', Style::default());
+        assert_eq!(buffer.get(0, 0).unwrap().ch, '\u{4E00}');
+        assert_eq!(buffer.get(0, 0).unwrap().wide, false); // primary cell
+        assert_eq!(buffer.get(1, 0).unwrap().wide, true);  // continuation cell
+        assert_eq!(buffer.get(1, 0).unwrap().ch, ' ');
+    }
+
+    #[test]
+    fn test_wide_char_at_edge() {
+        let mut buffer = Buffer::new(3, 1);
+        // Wide char at position 2 (last position) — no room for continuation
+        buffer.write(2, 0, '\u{4E00}', Style::default());
+        assert_eq!(buffer.get(2, 0).unwrap().ch, '\u{4E00}');
+        assert_eq!(buffer.get(2, 0).unwrap().wide, false);
+    }
+
+    #[test]
+    fn test_delete_chars_wide_boundary() {
+        let mut buffer = Buffer::new(6, 1);
+        buffer.write(0, 0, 'A', Style::default());
+        buffer.write(1, 0, '\u{4E00}', Style::default()); // wide at pos 1-2
+        buffer.write(3, 0, 'B', Style::default());
+        // After write: [A, 一, ' '(wide), B, ' ', ' ']
+        // Delete 1 char at position 1 removes the wide char primary
+        // Shifts left: [A, ' '(was wide), B, ' ', ' ', ' ']
+        // fix_wide_boundaries clears orphaned continuation
+        buffer.delete_chars(1, 0, 1);
+        assert_eq!(buffer.get(0, 0).unwrap().ch, 'A');
+        // B moved to position 2 after the orphaned continuation was cleared
+        assert_eq!(buffer.get(2, 0).unwrap().ch, 'B');
+        // No stale wide flags
+        assert!(!buffer.get(1, 0).unwrap().wide);
     }
 }

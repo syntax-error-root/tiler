@@ -351,8 +351,15 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
                     ps.cursor_y += 1;
                     ensure_cursor_in_bounds(pane, ps);
                 }
+                let is_wide_ch = buffer::is_wide(*ch);
+                // If wide char won't fit at current position, wrap first
+                if is_wide_ch && ps.cursor_x + 1 >= pane.width {
+                    ps.cursor_x = 0;
+                    ps.cursor_y += 1;
+                    ensure_cursor_in_bounds(pane, ps);
+                }
                 pane.buffer.write(ps.cursor_x, ps.cursor_y, *ch, ps.style);
-                let advance = if buffer::is_wide(*ch) { 2 } else { 1 };
+                let advance = if is_wide_ch { 2 } else { 1 };
                 ps.cursor_x += advance;
                 if ps.cursor_x >= pane.width {
                     ps.cursor_x = pane.width - 1;
@@ -361,8 +368,15 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
             }
             ansi::Action::MoveCursor(row, col) => {
                 ps.wrap_pending = false;
+                if ps.origin_mode {
+                    let top = pane.buffer.scroll_top();
+                    let region_height = pane.buffer.scroll_bottom().saturating_sub(top) + 1;
+                    let effective_row = (*row).min(region_height.saturating_sub(1)) + top;
+                    ps.cursor_y = effective_row.min(pane.height.saturating_sub(1));
+                } else {
+                    ps.cursor_y = (*row).min(pane.height.saturating_sub(1));
+                }
                 ps.cursor_x = (*col).min(pane.width.saturating_sub(1));
-                ps.cursor_y = (*row).min(pane.height.saturating_sub(1));
             }
             ansi::Action::CursorUp(n) => {
                 ps.wrap_pending = false;
