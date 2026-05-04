@@ -76,6 +76,7 @@ impl Color {
 pub struct Cell {
     pub ch: char,
     pub style: Style,
+    pub wide: bool,
 }
 
 impl Default for Cell {
@@ -83,6 +84,7 @@ impl Default for Cell {
         Cell {
             ch: ' ',
             style: Style::default(),
+            wide: false,
         }
     }
 }
@@ -119,6 +121,12 @@ impl Buffer {
         if x < self.width && y < self.height {
             self.cells[y][x].ch = ch;
             self.cells[y][x].style = style;
+            self.cells[y][x].wide = false;
+            if is_wide(ch) && x + 1 < self.width {
+                self.cells[y][x + 1].ch = ' ';
+                self.cells[y][x + 1].style = style;
+                self.cells[y][x + 1].wide = true;
+            }
         }
     }
 
@@ -353,6 +361,25 @@ fn color_cube_value(component: u32) -> u8 {
         0 => 0,
         v => ((v - 1) * 40 + 55) as u8,
     }
+}
+
+pub fn is_wide(ch: char) -> bool {
+    let cp = ch as u32;
+    // CJK Unified Ideographs
+    (0x4E00..=0x9FFF).contains(&cp)
+    // CJK Extension A
+    || (0x3400..=0x4DBF).contains(&cp)
+    // CJK Compatibility Ideographs
+    || (0xF900..=0xFAFF).contains(&cp)
+    // Hiragana, Katakana
+    || (0x3040..=0x309F).contains(&cp)
+    || (0x30A0..=0x30FF).contains(&cp)
+    // Hangul Syllables
+    || (0xAC00..=0xD7AF).contains(&cp)
+    // Fullwidth forms
+    || (0xFF01..=0xFF60).contains(&cp)
+    // CJK punctuation
+    || (0x3000..=0x303F).contains(&cp)
 }
 
 #[cfg(test)]

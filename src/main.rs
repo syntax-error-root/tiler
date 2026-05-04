@@ -352,7 +352,8 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
                     ensure_cursor_in_bounds(pane, ps);
                 }
                 pane.buffer.write(ps.cursor_x, ps.cursor_y, *ch, ps.style);
-                ps.cursor_x += 1;
+                let advance = if buffer::is_wide(*ch) { 2 } else { 1 };
+                ps.cursor_x += advance;
                 if ps.cursor_x >= pane.width {
                     ps.cursor_x = pane.width - 1;
                     ps.wrap_pending = true;
@@ -518,13 +519,7 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
             }
             ansi::Action::CursorRightAbsolute(col) => {
                 ps.wrap_pending = false;
-                let effective_col = if ps.origin_mode {
-                    let left = pane.buffer.scroll_top();
-                    (*col).min(pane.width.saturating_sub(1)) + left
-                } else {
-                    *col
-                };
-                ps.cursor_x = effective_col.min(pane.width.saturating_sub(1));
+                ps.cursor_x = (*col).min(pane.width.saturating_sub(1));
             }
             ansi::Action::CursorNextLine(n) => {
                 ps.wrap_pending = false;
@@ -591,9 +586,10 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
 
 fn ensure_cursor_in_bounds(pane: &mut layout::Pane, ps: &mut PaneState) {
     if pane.height == 0 { return; }
-    while ps.cursor_y >= pane.height {
+    let bottom = pane.buffer.scroll_bottom().min(pane.height.saturating_sub(1));
+    while ps.cursor_y > bottom {
         pane.buffer.scroll_up(1);
-        ps.cursor_y = pane.height - 1;
+        ps.cursor_y = bottom;
     }
 }
 

@@ -14,7 +14,7 @@ const DEFAULT_CELL_WIDTH: usize = 8;
 const DEFAULT_CELL_HEIGHT: usize = 16;
 
 fn default_cell() -> buffer::Cell {
-    buffer::Cell { ch: ' ', style: buffer::Style::default() }
+    buffer::Cell { ch: ' ', style: buffer::Style::default(), wide: false }
 }
 
 /// Cached rasterized glyph bitmap
@@ -31,7 +31,7 @@ struct GlyphBitmap {
 }
 
 /// Cache key: character + bold flag
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Clone)]
 struct GlyphKey {
     ch: char,
     bold: bool,
@@ -55,6 +55,7 @@ pub struct Renderer {
     cursor_blink: bool,
     /// Per-glyph rasterized bitmap cache (avoids re-rasterizing every frame)
     glyph_cache: HashMap<GlyphKey, GlyphBitmap>,
+    glyph_insert_order: Vec<GlyphKey>,
 }
 
 #[derive(Clone, Copy)]
@@ -118,6 +119,7 @@ impl Renderer {
             cursor_style,
             cursor_blink: config.render.cursor_blink,
             glyph_cache: HashMap::new(),
+            glyph_insert_order: Vec::new(),
         })
     }
 
@@ -217,7 +219,8 @@ impl Renderer {
         };
 
         for y in 0..pane.height {
-            for x in 0..pane.width {
+            let mut x = 0;
+            while x < pane.width {
                 let cell = pane.buffer.get_render_row(y)
                     .and_then(|r| r.get(x).copied())
                     .unwrap_or_else(default_cell);
@@ -225,15 +228,28 @@ impl Renderer {
                 let pixel_x = (pane.x + x) * self.cell_width;
                 let pixel_y = y_offset + (pane.y + y) * self.cell_height;
 
+                // Skip wide continuation cells (already drawn by the primary cell)
+                if cell.wide {
+                    x += 1;
+                    continue;
+                }
+
                 let fg = self.resolve_fg(&cell.style);
                 let bg = self.resolve_bg(&cell.style);
+                let is_wide = cell.ch != ' ' && x + 1 < pane.width && {
+                    let next = pane.buffer.get_render_row(y)
+                        .and_then(|r| r.get(x + 1).copied())
+                        .unwrap_or_else(default_cell);
+                    next.wide
+                };
+                let draw_w = if is_wide { self.cell_width * 2 } else { self.cell_width };
 
                 // Fill cell background
                 self.canvas.set_draw_color(Color::RGB(bg.0, bg.1, bg.2));
                 let _ = self.canvas.fill_rect(Rect::new(
                     pixel_x as i32,
                     pixel_y as i32,
-                    self.cell_width as u32,
+                    draw_w as u32,
                     self.cell_height as u32,
                 ));
 
@@ -243,13 +259,19 @@ impl Renderer {
                     let ul_y = (pixel_y + self.cell_height).saturating_sub(2) as i32;
                     let _ = self.canvas.draw_line(
                         sdl2::rect::Point::new(pixel_x as i32, ul_y),
-                        sdl2::rect::Point::new((pixel_x + self.cell_width) as i32, ul_y),
+                        sdl2::rect::Point::new((pixel_x + draw_w) as i32, ul_y),
                     );
                 }
 
                 // Draw glyph
                 if cell.ch != ' ' {
                     self.draw_glyph(cell.ch, fg, bg, cell.style.bold, pixel_x, pixel_y);
+                }
+
+                if is_wide {
+                    x += 2;
+                } else {
+                    x += 1;
                 }
             }
         }
@@ -344,7 +366,18 @@ impl Renderer {
                 y_offset: y_off,
                 pixels,
             };
-            self.glyph_cache.insert(key, bm);
+            self.glyph_cache.insert(key.clone(), bm);
+            self.glyph_insert_order.push(key);
+            const MAX_CACHE: usize = 4096;
+            if self.glyph_cache.len() > MAX_CACHE {
+                let evict_count = self.glyph_cache.len() / 4;
+                for _ in 0..evict_count {
+                    if let Some(old_key) = self.glyph_insert_order.first().cloned() {
+                        self.glyph_insert_order.remove(0);
+                        self.glyph_cache.remove(&old_key);
+                    }
+                }
+            }
         }
     }
 
