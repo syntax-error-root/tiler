@@ -215,21 +215,11 @@ impl Buffer {
             return;
         }
         let n = n.min(self.height - at_y);
-        // Remove bottom n rows
-        let mut dropped: Vec<Vec<Cell>> = Vec::with_capacity(n);
+        // Remove bottom n rows (lost, not scrolled to scrollback)
         for _ in 0..n {
-            if let Some(row) = self.cells.pop() {
-                dropped.push(row);
-            }
+            self.cells.pop();
         }
-        // Push to scrollback in original top-to-bottom order
-        dropped.reverse();
-        for row in dropped {
-            if self.scrollback.len() >= self.scrollback_limit {
-                self.scrollback.pop_front();
-            }
-            self.scrollback.push_back(row);
-        }
+        // Insert blank lines at the target position
         for _ in 0..n {
             self.cells.insert(at_y, vec![Cell::default(); self.width]);
         }
@@ -469,10 +459,8 @@ mod tests {
         assert_eq!(buffer.get(0, 1).unwrap().ch, ' ');
         assert_eq!(buffer.get(0, 2).unwrap().ch, ' ');
         assert_eq!(buffer.get(0, 3).unwrap().ch, 'B');
-        // Dropped rows should be in scrollback in original top-to-bottom order
-        assert_eq!(buffer.scrollback_len(), 2);
-        assert_eq!(buffer.scrollback[0][0].ch, 'C');
-        assert_eq!(buffer.scrollback[1][0].ch, 'D');
+        // IL does not push to scrollback (not a scroll operation)
+        assert_eq!(buffer.scrollback_len(), 0);
     }
 
     #[test]
