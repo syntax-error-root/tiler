@@ -29,6 +29,8 @@ pub enum Action {
     DeleteLines(usize),
     InsertChars(usize),
     DeleteChars(usize),
+    ScrollUp(usize),
+    ScrollDown(usize),
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -160,6 +162,8 @@ fn parse_escape_sequence(chars: &mut std::iter::Peekable<std::str::Chars>) -> Ve
             'M' => vec![Action::DeleteLines(n.max(1))],
             '@' => vec![Action::InsertChars(n.max(1))],
             'P' => vec![Action::DeleteChars(n.max(1))],
+            'S' => vec![Action::ScrollUp(n.max(1))],
+            'T' => vec![Action::ScrollDown(n.max(1))],
             'm' => {
                 if params.is_empty() {
                     return vec![Action::Reset];
@@ -335,5 +339,13 @@ mod tests {
         assert_eq!(parse("\x1B[3P"), vec![Action::DeleteChars(3)]);
         assert_eq!(parse("\x1B[@"), vec![Action::InsertChars(1)]);
         assert_eq!(parse("\x1B[P"), vec![Action::DeleteChars(1)]);
+    }
+
+    #[test]
+    fn test_scroll_up_down() {
+        assert_eq!(parse("\x1B[2S"), vec![Action::ScrollUp(2)]);
+        assert_eq!(parse("\x1B[3T"), vec![Action::ScrollDown(3)]);
+        assert_eq!(parse("\x1B[S"), vec![Action::ScrollUp(1)]);
+        assert_eq!(parse("\x1B[T"), vec![Action::ScrollDown(1)]);
     }
 }
