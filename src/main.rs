@@ -469,21 +469,27 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
                 }
             }
             ansi::Action::InsertLines(n) => {
+                ps.wrap_pending = false;
                 pane.buffer.insert_lines(ps.cursor_y, *n);
             }
             ansi::Action::DeleteLines(n) => {
+                ps.wrap_pending = false;
                 pane.buffer.delete_lines(ps.cursor_y, *n);
             }
             ansi::Action::InsertChars(n) => {
+                ps.wrap_pending = false;
                 pane.buffer.insert_chars(ps.cursor_x, ps.cursor_y, *n);
             }
             ansi::Action::DeleteChars(n) => {
+                ps.wrap_pending = false;
                 pane.buffer.delete_chars(ps.cursor_x, ps.cursor_y, *n);
             }
             ansi::Action::ScrollUp(n) => {
+                ps.wrap_pending = false;
                 pane.buffer.scroll_up(*n);
             }
             ansi::Action::ScrollDown(n) => {
+                ps.wrap_pending = false;
                 pane.buffer.scroll_down(*n);
             }
         }
