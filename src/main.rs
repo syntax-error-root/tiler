@@ -17,6 +17,7 @@ struct PaneState {
     saved_cursor: Option<(usize, usize, bool)>,
     style: buffer::Style,
     wrap_pending: bool,
+    pending_utf8: Vec<u8>,
 }
 
 fn main() -> Result<(), String> {
@@ -182,7 +183,32 @@ fn main() -> Result<(), String> {
                             break;
                         }
                         if let Some(pane) = layout.find_pane_mut(pane_id) {
-                            let actions = ansi::parse(&String::from_utf8_lossy(&output));
+                            // Prepend any leftover bytes from previous read
+                            let mut combined = std::mem::take(&mut pane_state.pending_utf8);
+                            combined.extend_from_slice(&output);
+
+                            // Find the last complete UTF-8 boundary
+                            let text = match std::str::from_utf8(&combined) {
+                                Ok(s) => {
+                                    pane_state.pending_utf8.clear();
+                                    s.to_string()
+                                }
+                                Err(e) => {
+                                    let valid_up_to = e.valid_up_to();
+                                    if valid_up_to == 0 {
+                                        // Entire buffer is incomplete — keep buffering
+                                        pane_state.pending_utf8 = combined;
+                                        break;
+                                    }
+                                    let text = unsafe {
+                                        std::str::from_utf8_unchecked(&combined[..valid_up_to])
+                                    }.to_string();
+                                    pane_state.pending_utf8 = combined[valid_up_to..].to_vec();
+                                    text
+                                }
+                            };
+
+                            let actions = ansi::parse(&text);
                             process_pty_actions(pane, pane_state, &actions);
                             pane.buffer.reset_scroll();
                         }
@@ -256,7 +282,6 @@ fn main() -> Result<(), String> {
             (id, PaneData {
                 cursor_x: ps.cursor_x,
                 cursor_y: ps.cursor_y,
-                saved_cursor: ps.saved_cursor,
                 style: ps.style,
             })
         }).collect();
@@ -288,6 +313,7 @@ fn spawn_pane(
         saved_cursor: None,
         style: buffer::Style::default(),
         wrap_pending: false,
+        pending_utf8: Vec::new(),
     });
     Ok(())
 }
@@ -382,6 +408,7 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
                 }
             }
             ansi::Action::ClearLine(mode) => {
+                ps.wrap_pending = false;
                 let y = ps.cursor_y.min(pane.height.saturating_sub(1));
                 match mode {
                     ansi::ClearMode::ToEnd => {
@@ -445,6 +472,12 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
             }
             ansi::Action::DeleteChars(n) => {
                 pane.buffer.delete_chars(ps.cursor_x, ps.cursor_y, *n);
+            }
+            ansi::Action::ScrollUp(n) => {
+                pane.buffer.scroll_up(*n);
+            }
+            ansi::Action::ScrollDown(n) => {
+                pane.buffer.scroll_down(*n);
             }
         }
     }
