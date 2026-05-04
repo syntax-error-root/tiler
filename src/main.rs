@@ -380,11 +380,17 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
             }
             ansi::Action::CursorUp(n) => {
                 ps.wrap_pending = false;
-                ps.cursor_y = ps.cursor_y.saturating_sub(*n);
+                let min_y = if ps.origin_mode { pane.buffer.scroll_top() } else { 0 };
+                ps.cursor_y = ps.cursor_y.saturating_sub(*n).max(min_y);
             }
             ansi::Action::CursorDown(n) => {
                 ps.wrap_pending = false;
-                ps.cursor_y = (ps.cursor_y + n).min(pane.height.saturating_sub(1));
+                let max_y = if ps.origin_mode {
+                    pane.buffer.scroll_bottom()
+                } else {
+                    pane.height.saturating_sub(1)
+                };
+                ps.cursor_y = (ps.cursor_y + n).min(max_y);
             }
             ansi::Action::CursorForward(n) => {
                 ps.wrap_pending = false;
