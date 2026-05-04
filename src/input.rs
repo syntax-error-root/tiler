@@ -133,6 +133,7 @@ pub fn key_to_pty_bytes(keycode: Keycode, ctrl: bool, alt: bool, shift: bool) ->
 
     let bytes = match keycode {
         Keycode::Return | Keycode::KpEnter => vec![13],
+        Keycode::Space => vec![b' '],
         Keycode::Backspace => vec![127],
         Keycode::Tab => vec![9],
         Keycode::Escape => vec![27],
