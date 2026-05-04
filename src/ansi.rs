@@ -32,6 +32,15 @@ pub enum Action {
     DeleteChars(usize),
     ScrollUp(usize),
     ScrollDown(usize),
+    Tab,
+    CursorUpAbsolute(usize),
+    CursorRightAbsolute(usize),
+    CursorNextLine(usize),
+    CursorPrevLine(usize),
+    SetScrollRegion(usize, usize),
+    SetPrivateMode(PrivateMode, bool),
+    DeviceStatusReport,
+    SetCursorStyle(CursorStyle),
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -47,6 +56,21 @@ pub enum Color {
     White,
     Indexed(u8),
     Rgb(u8, u8, u8),
+}
+
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum PrivateMode {
+    CursorVisibility,
+    AlternateScreen,
+    OriginMode,
+    BracketedPaste,
+}
+
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum CursorStyle {
+    Block,
+    Underline,
+    Bar,
 }
 
 pub fn parse(input: &str) -> Vec<Action> {
@@ -66,6 +90,13 @@ pub fn parse(input: &str) -> Vec<Action> {
                 match next {
                     '7' => { chars.next(); actions.push(Action::SaveCursor); }
                     '8' => { chars.next(); actions.push(Action::RestoreCursor); }
+                    '(' | ')' | '*' | '+' => {
+                        // SCS (Select Character Set) — consume and ignore
+                        chars.next();
+                        if chars.peek().is_some() {
+                            chars.next();
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -75,6 +106,8 @@ pub fn parse(input: &str) -> Vec<Action> {
             actions.push(Action::CarriageReturn);
         } else if ch == '\x08' {
             actions.push(Action::CursorBack(1));
+        } else if ch == '\t' {
+            actions.push(Action::Tab);
         } else if ch.is_control() {
             // Ignore other control characters (BEL, NUL, etc.)
         } else {
@@ -122,13 +155,37 @@ fn parse_escape_sequence(chars: &mut std::iter::Peekable<std::str::Chars>) -> Ve
         }
     }
 
-    if private {
-        // Consume the end character for private sequences (e.g., ?25h, ?25l)
-        chars.next();
-        return vec![];
+    // Collect intermediate bytes (0x20..=0x2F, e.g. space, !, ", #, $, etc.)
+    let mut intermediate: Option<char> = None;
+    while let Some(&ch) = chars.peek() {
+        if ch >= '\x20' && ch <= '\x2F' {
+            intermediate = Some(ch);
+            chars.next();
+        } else {
+            break;
+        }
     }
 
-    if let Some(end_char) = chars.next() {
+    if private {
+        if let Some(end_char) = chars.next() {
+            match end_char {
+                'h' | 'l' => {
+                    let set = end_char == 'h';
+                    let mode: usize = params.parse().unwrap_or(0);
+                    match mode {
+                        25 => vec![Action::SetPrivateMode(PrivateMode::CursorVisibility, set)],
+                        1049 => vec![Action::SetPrivateMode(PrivateMode::AlternateScreen, set)],
+                        6 => vec![Action::SetPrivateMode(PrivateMode::OriginMode, set)],
+                        2004 => vec![Action::SetPrivateMode(PrivateMode::BracketedPaste, set)],
+                        _ => vec![],
+                    }
+                }
+                _ => vec![],
+            }
+        } else {
+            vec![]
+        }
+    } else if let Some(end_char) = chars.next() {
         let n: usize = params.parse().unwrap_or(1);
         match end_char {
             'H' | 'f' => {
@@ -167,6 +224,41 @@ fn parse_escape_sequence(chars: &mut std::iter::Peekable<std::str::Chars>) -> Ve
             'P' => vec![Action::DeleteChars(n.max(1))],
             'S' => vec![Action::ScrollUp(n.max(1))],
             'T' => vec![Action::ScrollDown(n.max(1))],
+            'd' => vec![Action::CursorUpAbsolute(n.max(1).saturating_sub(1))],
+            'G' => vec![Action::CursorRightAbsolute(n.max(1).saturating_sub(1))],
+            'E' => vec![Action::CursorNextLine(n.max(1))],
+            'F' => vec![Action::CursorPrevLine(n.max(1))],
+            'r' => {
+                if params.is_empty() {
+                    vec![Action::SetScrollRegion(0, 0)]
+                } else {
+                    let parts: Vec<usize> = params.split(';')
+                        .filter_map(|s| s.parse().ok())
+                        .collect();
+                    let top = parts.get(0).copied().unwrap_or(1).saturating_sub(1);
+                    let bottom = parts.get(1).copied().unwrap_or(0).saturating_sub(1);
+                    vec![Action::SetScrollRegion(top, bottom)]
+                }
+            }
+            'n' => {
+                if params.parse().unwrap_or(0) == 6 {
+                    vec![Action::DeviceStatusReport]
+                } else {
+                    vec![]
+                }
+            }
+            'q' => {
+                if intermediate == Some(' ') {
+                    let style = match n {
+                        3 | 5 | 7 => CursorStyle::Bar,
+                        2 | 4 | 6 => CursorStyle::Underline,
+                        _ => CursorStyle::Block,
+                    };
+                    vec![Action::SetCursorStyle(style)]
+                } else {
+                    vec![]
+                }
+            }
             'm' => {
                 if params.is_empty() {
                     return vec![Action::Reset];
@@ -389,5 +481,81 @@ mod tests {
     fn test_reverse_video() {
         assert_eq!(parse("\x1B[7m"), vec![Action::SetReverse(true)]);
         assert_eq!(parse("\x1B[27m"), vec![Action::SetReverse(false)]);
+    }
+
+    #[test]
+    fn test_private_mode_cursor_visibility() {
+        assert_eq!(parse("\x1B[?25h"), vec![Action::SetPrivateMode(PrivateMode::CursorVisibility, true)]);
+        assert_eq!(parse("\x1B[?25l"), vec![Action::SetPrivateMode(PrivateMode::CursorVisibility, false)]);
+    }
+
+    #[test]
+    fn test_private_mode_alt_screen() {
+        assert_eq!(parse("\x1B[?1049h"), vec![Action::SetPrivateMode(PrivateMode::AlternateScreen, true)]);
+        assert_eq!(parse("\x1B[?1049l"), vec![Action::SetPrivateMode(PrivateMode::AlternateScreen, false)]);
+    }
+
+    #[test]
+    fn test_private_mode_origin() {
+        assert_eq!(parse("\x1B[?6h"), vec![Action::SetPrivateMode(PrivateMode::OriginMode, true)]);
+        assert_eq!(parse("\x1B[?6l"), vec![Action::SetPrivateMode(PrivateMode::OriginMode, false)]);
+    }
+
+    #[test]
+    fn test_private_mode_bracketed_paste() {
+        assert_eq!(parse("\x1B[?2004h"), vec![Action::SetPrivateMode(PrivateMode::BracketedPaste, true)]);
+        assert_eq!(parse("\x1B[?2004l"), vec![Action::SetPrivateMode(PrivateMode::BracketedPaste, false)]);
+    }
+
+    #[test]
+    fn test_tab() {
+        assert_eq!(parse("\t"), vec![Action::Tab]);
+    }
+
+    #[test]
+    fn test_vpa() {
+        assert_eq!(parse("\x1B[5d"), vec![Action::CursorUpAbsolute(4)]);
+        assert_eq!(parse("\x1B[d"), vec![Action::CursorUpAbsolute(0)]);
+    }
+
+    #[test]
+    fn test_hpa() {
+        assert_eq!(parse("\x1B[10G"), vec![Action::CursorRightAbsolute(9)]);
+        assert_eq!(parse("\x1B[G"), vec![Action::CursorRightAbsolute(0)]);
+    }
+
+    #[test]
+    fn test_cnl_cpl() {
+        assert_eq!(parse("\x1B[3E"), vec![Action::CursorNextLine(3)]);
+        assert_eq!(parse("\x1B[E"), vec![Action::CursorNextLine(1)]);
+        assert_eq!(parse("\x1B[2F"), vec![Action::CursorPrevLine(2)]);
+        assert_eq!(parse("\x1B[F"), vec![Action::CursorPrevLine(1)]);
+    }
+
+    #[test]
+    fn test_decstbm() {
+        assert_eq!(parse("\x1B[5;20r"), vec![Action::SetScrollRegion(4, 19)]);
+        assert_eq!(parse("\x1B[r"), vec![Action::SetScrollRegion(0, 0)]);
+    }
+
+    #[test]
+    fn test_dsr() {
+        assert_eq!(parse("\x1B[6n"), vec![Action::DeviceStatusReport]);
+        assert_eq!(parse("\x1B[5n"), vec![]);
+    }
+
+    #[test]
+    fn test_cursor_style() {
+        assert_eq!(parse("\x1B[1 q"), vec![Action::SetCursorStyle(CursorStyle::Block)]);
+        assert_eq!(parse("\x1B[3 q"), vec![Action::SetCursorStyle(CursorStyle::Bar)]);
+        assert_eq!(parse("\x1B[4 q"), vec![Action::SetCursorStyle(CursorStyle::Underline)]);
+    }
+
+    #[test]
+    fn test_scs_ignored() {
+        let result = parse("\x1B(Btext");
+        assert_eq!(result, vec![Action::Write('t'), Action::Write('e'), Action::Write('x'), Action::Write('t')]);
+        let result2 = parse("\x1B)0text");
+        assert_eq!(result2, vec![Action::Write('t'), Action::Write('e'), Action::Write('x'), Action::Write('t')]);
     }
 }

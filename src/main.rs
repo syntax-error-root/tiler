@@ -18,6 +18,9 @@ struct PaneState {
     style: buffer::Style,
     wrap_pending: bool,
     pending_utf8: Vec<u8>,
+    cursor_visible: bool,
+    origin_mode: bool,
+    bracketed_paste: bool,
 }
 
 fn main() -> Result<(), String> {
@@ -287,6 +290,7 @@ fn main() -> Result<(), String> {
             (id, PaneData {
                 cursor_x: ps.cursor_x,
                 cursor_y: ps.cursor_y,
+                cursor_visible: ps.cursor_visible,
             })
         }).collect();
 
@@ -318,6 +322,9 @@ fn spawn_pane(
         style: buffer::Style::default(),
         wrap_pending: false,
         pending_utf8: Vec::new(),
+        cursor_visible: true,
+        origin_mode: false,
+        bracketed_paste: false,
     });
     Ok(())
 }
@@ -492,6 +499,91 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
             ansi::Action::ScrollDown(n) => {
                 ps.wrap_pending = false;
                 pane.buffer.scroll_down(*n);
+            }
+            ansi::Action::Tab => {
+                ps.wrap_pending = false;
+                let tab_width = 8;
+                let next_tab = ((ps.cursor_x / tab_width) + 1) * tab_width;
+                ps.cursor_x = next_tab.min(pane.width.saturating_sub(1));
+            }
+            ansi::Action::CursorUpAbsolute(row) => {
+                ps.wrap_pending = false;
+                let effective_row = if ps.origin_mode {
+                    let top = pane.buffer.scroll_top();
+                    (*row).min(pane.buffer.scroll_bottom().saturating_sub(top)) + top
+                } else {
+                    *row
+                };
+                ps.cursor_y = effective_row.min(pane.height.saturating_sub(1));
+            }
+            ansi::Action::CursorRightAbsolute(col) => {
+                ps.wrap_pending = false;
+                let effective_col = if ps.origin_mode {
+                    let left = pane.buffer.scroll_top();
+                    (*col).min(pane.width.saturating_sub(1)) + left
+                } else {
+                    *col
+                };
+                ps.cursor_x = effective_col.min(pane.width.saturating_sub(1));
+            }
+            ansi::Action::CursorNextLine(n) => {
+                ps.wrap_pending = false;
+                ps.cursor_x = 0;
+                ps.cursor_y = (ps.cursor_y + n).min(pane.height.saturating_sub(1));
+            }
+            ansi::Action::CursorPrevLine(n) => {
+                ps.wrap_pending = false;
+                ps.cursor_x = 0;
+                ps.cursor_y = ps.cursor_y.saturating_sub(*n);
+            }
+            ansi::Action::SetScrollRegion(top, bottom) => {
+                ps.wrap_pending = false;
+                if *top == 0 && *bottom == 0 {
+                    pane.buffer.set_scroll_region(0, pane.height.saturating_sub(1));
+                } else {
+                    pane.buffer.set_scroll_region(*top, (*bottom).min(pane.height.saturating_sub(1)));
+                }
+                ps.cursor_x = 0;
+                ps.cursor_y = 0;
+            }
+            ansi::Action::SetPrivateMode(mode, set) => {
+                match mode {
+                    ansi::PrivateMode::CursorVisibility => {
+                        ps.cursor_visible = *set;
+                    }
+                    ansi::PrivateMode::OriginMode => {
+                        ps.origin_mode = *set;
+                        if *set {
+                            let top = pane.buffer.scroll_top();
+                            ps.cursor_x = 0;
+                            ps.cursor_y = top;
+                        } else {
+                            ps.cursor_x = 0;
+                            ps.cursor_y = 0;
+                        }
+                    }
+                    ansi::PrivateMode::AlternateScreen => {
+                        if *set {
+                            pane.buffer.save_main_screen();
+                        } else {
+                            pane.buffer.restore_main_screen();
+                        }
+                        ps.cursor_x = 0;
+                        ps.cursor_y = 0;
+                    }
+                    ansi::PrivateMode::BracketedPaste => {
+                        ps.bracketed_paste = *set;
+                    }
+                }
+            }
+            ansi::Action::DeviceStatusReport => {
+                let row = (ps.cursor_y + 1).min(pane.height);
+                let col = (ps.cursor_x + 1).min(pane.width);
+                let response = format!("\x1B[{};{}R", row, col);
+                let _ = ps.pty.write(response.as_bytes());
+            }
+            ansi::Action::SetCursorStyle(_style) => {
+                // Cursor style tracked but rendering not yet implemented
             }
         }
     }

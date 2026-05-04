@@ -255,7 +255,7 @@ impl Renderer {
         }
 
         // Draw cursor
-        if is_focused && cursor_visible {
+        if is_focused && cursor_visible && pd.cursor_visible {
             let cx = pd.cursor_x.min(pane.width.saturating_sub(1));
             let cy = pd.cursor_y.min(pane.height.saturating_sub(1));
             let pixel_x = (pane.x + cx) * self.cell_width;
@@ -512,6 +512,7 @@ impl Renderer {
 pub struct PaneData {
     pub cursor_x: usize,
     pub cursor_y: usize,
+    pub cursor_visible: bool,
 }
 
 /// Generate the app icon: clean dark tile with rounded border and minimal `>_` prompt.

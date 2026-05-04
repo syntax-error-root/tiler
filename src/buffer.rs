@@ -94,6 +94,9 @@ pub struct Buffer {
     scrollback: VecDeque<Vec<Cell>>,
     pub scrollback_limit: usize,
     pub scroll_offset: usize,
+    scroll_top: usize,
+    scroll_bottom: usize,
+    saved_main: Option<(Vec<Vec<Cell>>, VecDeque<Vec<Cell>>)>,
 }
 
 impl Buffer {
@@ -106,6 +109,9 @@ impl Buffer {
             scrollback: VecDeque::new(),
             scrollback_limit: 10000,
             scroll_offset: 0,
+            scroll_top: 0,
+            scroll_bottom: height.saturating_sub(1),
+            saved_main: None,
         }
     }
 
@@ -133,24 +139,22 @@ impl Buffer {
     }
 
     pub fn scroll_up(&mut self, n: usize) {
-        if n >= self.height {
-            // Push all rows to scrollback
-            for row in self.cells.drain(..) {
+        let top = self.scroll_top;
+        let bottom = self.scroll_bottom.min(self.height.saturating_sub(1));
+        let region_height = bottom.saturating_sub(top) + 1;
+        if region_height == 0 || n == 0 {
+            return;
+        }
+        let n = n.min(region_height);
+        for _ in 0..n {
+            let row = self.cells.remove(top);
+            if top == 0 {
                 if self.scrollback.len() >= self.scrollback_limit {
                     self.scrollback.pop_front();
                 }
                 self.scrollback.push_back(row);
             }
-            self.cells = vec![vec![Cell::default(); self.width]; self.height];
-            return;
-        }
-        for _ in 0..n {
-            let row = self.cells.remove(0);
-            if self.scrollback.len() >= self.scrollback_limit {
-                self.scrollback.pop_front();
-            }
-            self.scrollback.push_back(row);
-            self.cells.push(vec![Cell::default(); self.width]);
+            self.cells.insert(bottom, vec![Cell::default(); self.width]);
         }
     }
 
@@ -164,6 +168,8 @@ impl Buffer {
         self.cells = new_cells;
         self.width = new_width;
         self.height = new_height;
+        self.scroll_top = 0;
+        self.scroll_bottom = new_height.saturating_sub(1);
 
         // Resize scrollback rows to match new width
         for row in &mut self.scrollback {
@@ -211,47 +217,74 @@ impl Buffer {
     }
 
     pub fn insert_lines(&mut self, at_y: usize, n: usize) {
-        if at_y >= self.height || n == 0 {
+        let bottom = self.scroll_bottom.min(self.height.saturating_sub(1));
+        if at_y > bottom || n == 0 {
             return;
         }
-        let n = n.min(self.height - at_y);
-        // Remove bottom n rows (lost, not scrolled to scrollback)
+        let n = n.min(bottom - at_y + 1);
         for _ in 0..n {
-            self.cells.pop();
-        }
-        // Insert blank lines at the target position
-        for _ in 0..n {
+            self.cells.remove(bottom);
             self.cells.insert(at_y, vec![Cell::default(); self.width]);
         }
-        self.cells.truncate(self.height);
     }
 
     pub fn delete_lines(&mut self, at_y: usize, n: usize) {
-        if at_y >= self.height || n == 0 {
+        let bottom = self.scroll_bottom.min(self.height.saturating_sub(1));
+        if at_y > bottom || n == 0 {
             return;
         }
-        let n = n.min(self.height - at_y);
+        let n = n.min(bottom - at_y + 1);
         for _ in 0..n {
             self.cells.remove(at_y);
+            self.cells.insert(bottom, vec![Cell::default(); self.width]);
         }
-        for _ in 0..n {
-            self.cells.push(vec![Cell::default(); self.width]);
-        }
-        self.cells.truncate(self.height);
     }
 
     pub fn scrollback_len(&self) -> usize {
         self.scrollback.len()
     }
 
+    pub fn scroll_top(&self) -> usize {
+        self.scroll_top
+    }
+
+    pub fn scroll_bottom(&self) -> usize {
+        self.scroll_bottom
+    }
+
+    pub fn set_scroll_region(&mut self, top: usize, bottom: usize) {
+        self.scroll_top = top;
+        self.scroll_bottom = bottom;
+    }
+
+    pub fn save_main_screen(&mut self) {
+        let saved_cells = self.cells.clone();
+        let saved_scrollback = self.scrollback.clone();
+        self.saved_main = Some((saved_cells, saved_scrollback));
+        self.cells = vec![vec![Cell::default(); self.width]; self.height];
+        self.scrollback = VecDeque::new();
+        self.scroll_offset = 0;
+    }
+
+    pub fn restore_main_screen(&mut self) {
+        if let Some((cells, scrollback)) = self.saved_main.take() {
+            self.cells = cells;
+            self.scrollback = scrollback;
+            self.scroll_offset = 0;
+        }
+    }
+
     pub fn scroll_down(&mut self, n: usize) {
-        if n >= self.height {
-            self.clear();
+        let top = self.scroll_top;
+        let bottom = self.scroll_bottom.min(self.height.saturating_sub(1));
+        let region_height = bottom.saturating_sub(top) + 1;
+        if region_height == 0 || n == 0 {
             return;
         }
+        let n = n.min(region_height);
         for _ in 0..n {
-            self.cells.pop();
-            self.cells.insert(0, vec![Cell::default(); self.width]);
+            self.cells.remove(bottom);
+            self.cells.insert(top, vec![Cell::default(); self.width]);
         }
     }
 
@@ -518,5 +551,67 @@ mod tests {
         assert_eq!(buffer.get(0, 1).unwrap().ch, ' ');
         assert_eq!(buffer.get(0, 2).unwrap().ch, 'A');
         assert_eq!(buffer.get(0, 3).unwrap().ch, 'B');
+    }
+
+    #[test]
+    fn test_scroll_region() {
+        let mut buffer = Buffer::new(3, 6);
+        // Fill rows: A B C D E F
+        for (i, ch) in "ABCDEF".chars().enumerate() {
+            buffer.write(0, i, ch, Style::default());
+        }
+        // Set scroll region to rows 1-4 (B C D E)
+        buffer.set_scroll_region(1, 4);
+        buffer.scroll_up(1);
+        // Row 0 (A) untouched, rows 1-4 shifted up, row 5 (F) untouched
+        assert_eq!(buffer.get(0, 0).unwrap().ch, 'A'); // outside region
+        assert_eq!(buffer.get(0, 1).unwrap().ch, 'C'); // B scrolled out
+        assert_eq!(buffer.get(0, 2).unwrap().ch, 'D');
+        assert_eq!(buffer.get(0, 3).unwrap().ch, 'E');
+        assert_eq!(buffer.get(0, 4).unwrap().ch, ' '); // blank line in
+        assert_eq!(buffer.get(0, 5).unwrap().ch, 'F'); // outside region
+    }
+
+    #[test]
+    fn test_scroll_region_down() {
+        let mut buffer = Buffer::new(3, 6);
+        for (i, ch) in "ABCDEF".chars().enumerate() {
+            buffer.write(0, i, ch, Style::default());
+        }
+        buffer.set_scroll_region(1, 4);
+        buffer.scroll_down(1);
+        assert_eq!(buffer.get(0, 0).unwrap().ch, 'A');
+        assert_eq!(buffer.get(0, 1).unwrap().ch, ' '); // blank inserted
+        assert_eq!(buffer.get(0, 2).unwrap().ch, 'B');
+        assert_eq!(buffer.get(0, 3).unwrap().ch, 'C');
+        assert_eq!(buffer.get(0, 4).unwrap().ch, 'D'); // E scrolled out
+        assert_eq!(buffer.get(0, 5).unwrap().ch, 'F');
+    }
+
+    #[test]
+    fn test_scroll_region_reset() {
+        let mut buffer = Buffer::new(3, 4);
+        buffer.set_scroll_region(1, 3);
+        assert_eq!(buffer.scroll_top(), 1);
+        assert_eq!(buffer.scroll_bottom(), 3);
+        buffer.set_scroll_region(0, 3);
+        assert_eq!(buffer.scroll_top(), 0);
+    }
+
+    #[test]
+    fn test_alt_screen() {
+        let mut buffer = Buffer::new(5, 3);
+        buffer.write(0, 0, 'A', Style::default());
+        buffer.write(0, 1, 'B', Style::default());
+        buffer.save_main_screen();
+        // Alt screen should be blank
+        assert_eq!(buffer.get(0, 0).unwrap().ch, ' ');
+        // Write to alt screen
+        buffer.write(0, 0, 'X', Style::default());
+        assert_eq!(buffer.get(0, 0).unwrap().ch, 'X');
+        // Restore main screen
+        buffer.restore_main_screen();
+        assert_eq!(buffer.get(0, 0).unwrap().ch, 'A');
+        assert_eq!(buffer.get(0, 1).unwrap().ch, 'B');
     }
 }
