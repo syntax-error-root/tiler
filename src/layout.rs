@@ -198,6 +198,7 @@ impl Layout {
     }
 
     fn find_adjacent_pane(panes: &[Pane], pane: &Pane, direction: Direction) -> Option<usize> {
+        const TOLERANCE: i32 = 1;
         let mut best_candidate: Option<(usize, f64)> = None;
 
         for other in panes {
@@ -206,19 +207,38 @@ impl Layout {
             }
 
             let distance = match direction {
-                Direction::Up if other.y + other.height == pane.y => {
-                    Some(Self::horizontal_overlap(pane, other) as f64)
+                Direction::Up => {
+                    let edge_diff = (pane.y as i32 - (other.y + other.height) as i32).abs();
+                    if edge_diff <= TOLERANCE && Self::horizontal_overlap(pane, other) > 0 {
+                        Some(Self::horizontal_overlap(pane, other) as f64)
+                    } else {
+                        None
+                    }
                 }
-                Direction::Down if other.y == pane.y + pane.height => {
-                    Some(Self::horizontal_overlap(pane, other) as f64)
+                Direction::Down => {
+                    let edge_diff = ((pane.y + pane.height) as i32 - other.y as i32).abs();
+                    if edge_diff <= TOLERANCE && Self::horizontal_overlap(pane, other) > 0 {
+                        Some(Self::horizontal_overlap(pane, other) as f64)
+                    } else {
+                        None
+                    }
                 }
-                Direction::Left if other.x + other.width == pane.x => {
-                    Some(Self::vertical_overlap(pane, other) as f64)
+                Direction::Left => {
+                    let edge_diff = (pane.x as i32 - (other.x + other.width) as i32).abs();
+                    if edge_diff <= TOLERANCE && Self::vertical_overlap(pane, other) > 0 {
+                        Some(Self::vertical_overlap(pane, other) as f64)
+                    } else {
+                        None
+                    }
                 }
-                Direction::Right if other.x == pane.x + pane.width => {
-                    Some(Self::vertical_overlap(pane, other) as f64)
+                Direction::Right => {
+                    let edge_diff = ((pane.x + pane.width) as i32 - other.x as i32).abs();
+                    if edge_diff <= TOLERANCE && Self::vertical_overlap(pane, other) > 0 {
+                        Some(Self::vertical_overlap(pane, other) as f64)
+                    } else {
+                        None
+                    }
                 }
-                _ => None,
             };
 
             if let Some(overlap) = distance {
