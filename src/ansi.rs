@@ -22,6 +22,7 @@ pub enum Action {
     SetBold(bool),
     SetItalic(bool),
     SetUnderline(bool),
+    SetReverse(bool),
     Reset,
     ClearLine(ClearMode),
     ClearScreen(ClearMode),
@@ -188,9 +189,11 @@ fn parse_color_codes(codes: &[u32]) -> Vec<Action> {
             1 => actions.push(Action::SetBold(true)),
             3 => actions.push(Action::SetItalic(true)),
             4 => actions.push(Action::SetUnderline(true)),
+            7 => actions.push(Action::SetReverse(true)),
             22 => actions.push(Action::SetBold(false)),
             23 => actions.push(Action::SetItalic(false)),
             24 => actions.push(Action::SetUnderline(false)),
+            27 => actions.push(Action::SetReverse(false)),
             30 => actions.push(Action::SetFgColor(Color::Black)),
             31 => actions.push(Action::SetFgColor(Color::Red)),
             32 => actions.push(Action::SetFgColor(Color::Green)),
@@ -347,5 +350,11 @@ mod tests {
         assert_eq!(parse("\x1B[3T"), vec![Action::ScrollDown(3)]);
         assert_eq!(parse("\x1B[S"), vec![Action::ScrollUp(1)]);
         assert_eq!(parse("\x1B[T"), vec![Action::ScrollDown(1)]);
+    }
+
+    #[test]
+    fn test_reverse_video() {
+        assert_eq!(parse("\x1B[7m"), vec![Action::SetReverse(true)]);
+        assert_eq!(parse("\x1B[27m"), vec![Action::SetReverse(false)]);
     }
 }

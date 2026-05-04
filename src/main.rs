@@ -387,6 +387,9 @@ fn process_pty_actions(pane: &mut layout::Pane, ps: &mut PaneState, actions: &[a
             ansi::Action::SetUnderline(underline) => {
                 ps.style.underline = *underline;
             }
+            ansi::Action::SetReverse(reverse) => {
+                ps.style.reverse = *reverse;
+            }
             ansi::Action::Reset => {
                 ps.style = buffer::Style::default();
             }
